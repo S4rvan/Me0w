@@ -17,7 +17,7 @@ interface ThreadLyricsDisplayProps {
   setIsInstrumental: (val: boolean) => void;
 }
 
-// 4-Point Sparkle Diamond Star (Astronomical star vertex)
+// 4-Point Sparkle Diamond Star (Astronomical star vertex from reference star map)
 interface DiamondStarProps {
   size: number;
   isActive: boolean;
@@ -34,7 +34,7 @@ const DiamondStar: React.FC<DiamondStarProps> = ({ size, isActive, color }) => {
       className="overflow-visible pointer-events-none inline-block flex-shrink-0"
       style={{
         filter: isActive
-          ? `drop-shadow(0 0 8px ${color}) drop-shadow(0 0 18px ${color})`
+          ? `drop-shadow(0 0 8px ${color}) drop-shadow(0 0 20px ${color})`
           : `drop-shadow(0 0 2px ${color})`,
       }}
     >
@@ -44,7 +44,7 @@ const DiamondStar: React.FC<DiamondStarProps> = ({ size, isActive, color }) => {
         fill={color}
       />
       {/* Bright Stellar White Core */}
-      <circle cx="0" cy="0" r={Math.max(1.5, r * 0.3)} fill="#ffffff" />
+      <circle cx="0" cy="0" r={Math.max(1.6, r * 0.32)} fill="#ffffff" />
     </svg>
   );
 };
@@ -69,11 +69,131 @@ export interface ConstellationEdge {
 
 export interface ConstellationPhrase {
   lineId: number;
+  constellationName: string;
   start: number;
   end: number;
   stars: ConstellationStar[];
   edges: ConstellationEdge[];
+  centerX: number;
+  centerY: number;
 }
+
+// Real Astronomical Constellation Templates (Modeled directly from the user's star map image)
+interface RealConstellationDefinition {
+  name: string;
+  points: { dx: number; dy: number; labelPlacement?: 'top' | 'bottom' }[];
+}
+
+const REAL_CONSTELLATIONS: RealConstellationDefinition[] = [
+  {
+    name: 'CASSIOPEIA',
+    // The iconic W / Crown zig-zag from the top of the star map
+    points: [
+      { dx: -0.9, dy: -0.22, labelPlacement: 'top' },    // Caph
+      { dx: -0.45, dy: 0.55, labelPlacement: 'bottom' }, // Schedar
+      { dx: 0.0, dy: -0.38, labelPlacement: 'top' },    // Gamma Cas
+      { dx: 0.48, dy: 0.52, labelPlacement: 'bottom' },  // Ruchbah
+      { dx: 0.9, dy: -0.42, labelPlacement: 'top' },    // Segin
+    ],
+  },
+  {
+    name: 'URSA MAJOR',
+    // The famous Plough / Great Bear handle and pointer arc
+    points: [
+      { dx: -0.9, dy: 0.42, labelPlacement: 'bottom' },  // Alkaid
+      { dx: -0.6, dy: 0.16, labelPlacement: 'top' },     // Mizar
+      { dx: -0.3, dy: 0.02, labelPlacement: 'top' },     // Alioth
+      { dx: 0.05, dy: -0.06, labelPlacement: 'bottom' }, // Megrez
+      { dx: 0.55, dy: -0.24, labelPlacement: 'top' },    // Dubhe
+      { dx: 0.65, dy: 0.46, labelPlacement: 'bottom' },  // Merak
+      { dx: 0.15, dy: 0.52, labelPlacement: 'bottom' },  // Phecda
+    ],
+  },
+  {
+    name: 'DRACO',
+    // The celestial dragon winding through the stars
+    points: [
+      { dx: -0.85, dy: -0.45, labelPlacement: 'top' },
+      { dx: -0.6, dy: -0.15, labelPlacement: 'top' },
+      { dx: -0.35, dy: 0.35, labelPlacement: 'bottom' },
+      { dx: -0.05, dy: 0.6, labelPlacement: 'bottom' },
+      { dx: 0.35, dy: 0.35, labelPlacement: 'bottom' },
+      { dx: 0.55, dy: -0.25, labelPlacement: 'top' },
+      { dx: 0.35, dy: -0.6, labelPlacement: 'top' },
+      { dx: 0.7, dy: -0.45, labelPlacement: 'top' },
+      { dx: 0.9, dy: 0.02, labelPlacement: 'bottom' },
+    ],
+  },
+  {
+    name: 'CYGNUS',
+    // The Northern Cross diagonal celestial spine
+    points: [
+      { dx: -0.8, dy: -0.55, labelPlacement: 'top' },    // Deneb
+      { dx: -0.4, dy: -0.25, labelPlacement: 'top' },
+      { dx: 0.0, dy: 0.02, labelPlacement: 'bottom' },   // Sadr
+      { dx: 0.45, dy: 0.35, labelPlacement: 'bottom' },
+      { dx: 0.85, dy: 0.65, labelPlacement: 'bottom' },  // Albireo
+    ],
+  },
+  {
+    name: 'ANDROMEDA',
+    // Radiating celestial star chain
+    points: [
+      { dx: -0.85, dy: 0.42, labelPlacement: 'bottom' }, // Alpheratz
+      { dx: -0.4, dy: 0.12, labelPlacement: 'top' },     // Delta And
+      { dx: 0.1, dy: -0.22, labelPlacement: 'top' },     // Mirach
+      { dx: 0.6, dy: -0.52, labelPlacement: 'top' },     // Almach
+      { dx: 0.85, dy: -0.16, labelPlacement: 'bottom' },
+    ],
+  },
+  {
+    name: 'PERSEUS',
+    // The sweeping angular hero branch from Mirfak
+    points: [
+      { dx: -0.75, dy: -0.45, labelPlacement: 'top' },   // Gamma Per
+      { dx: -0.35, dy: -0.15, labelPlacement: 'top' },   // Mirfak
+      { dx: -0.45, dy: 0.52, labelPlacement: 'bottom' },  // Algol
+      { dx: 0.15, dy: 0.12, labelPlacement: 'top' },     // Epsilon Per
+      { dx: 0.55, dy: 0.42, labelPlacement: 'bottom' },  // Menkib
+      { dx: 0.85, dy: 0.16, labelPlacement: 'bottom' },  // Atik
+    ],
+  },
+  {
+    name: 'BOOTES',
+    // The soaring herdsman kite spine leading to Arcturus
+    points: [
+      { dx: -0.65, dy: 0.62, labelPlacement: 'bottom' }, // Arcturus
+      { dx: -0.85, dy: 0.16, labelPlacement: 'bottom' },
+      { dx: -0.25, dy: 0.02, labelPlacement: 'top' },    // Izar
+      { dx: 0.25, dy: -0.32, labelPlacement: 'top' },    // Delta Boo
+      { dx: 0.65, dy: -0.65, labelPlacement: 'top' },   // Nekkar
+      { dx: 0.35, dy: -0.65, labelPlacement: 'top' },   // Seginus
+    ],
+  },
+  {
+    name: 'LACERTA',
+    // Tight, sharp 5-star zigzag
+    points: [
+      { dx: -0.7, dy: 0.52, labelPlacement: 'bottom' },
+      { dx: -0.3, dy: 0.06, labelPlacement: 'top' },
+      { dx: -0.45, dy: -0.46, labelPlacement: 'top' },
+      { dx: 0.2, dy: -0.16, labelPlacement: 'bottom' },
+      { dx: 0.65, dy: -0.56, labelPlacement: 'top' },
+    ],
+  },
+  {
+    name: 'URSA MINOR',
+    // The polar constellation pointing to Polaris
+    points: [
+      { dx: 0.0, dy: -0.55, labelPlacement: 'top' },     // Polaris
+      { dx: -0.25, dy: -0.25, labelPlacement: 'top' },   // Yildun
+      { dx: -0.45, dy: 0.02, labelPlacement: 'bottom' },
+      { dx: -0.35, dy: 0.46, labelPlacement: 'bottom' }, // Anwar al Farkadain
+      { dx: 0.15, dy: 0.56, labelPlacement: 'bottom' },  // Kochab
+      { dx: 0.4, dy: 0.26, labelPlacement: 'top' },      // Pherkad
+    ],
+  },
+];
 
 // Warm Celestial Constellation Palette (coral, peach, amber, rose, lilac, sky)
 const CONSTELLATION_PALETTE = [
@@ -86,9 +206,9 @@ const CONSTELLATION_PALETTE = [
 ];
 
 /**
- * Builds an angular celestial constellation chain:
- * Progresses forward across the sky with sharp, dramatic angle differences at each star vertex.
- * STRICTLY ZERO LOOPS OR CYCLES as requested.
+ * Builds an authentic astronomical constellation layout for each lyric phrase
+ * modeled directly after the constellations in the star map image (Cassiopeia, Ursa Major, Draco, Cygnus, etc.).
+ * Strictly a 1-to-1 forward angular chain with ZERO LOOPS.
  */
 function buildConstellationForLine(line: LyricLine, lineIndex: number): ConstellationPhrase {
   const words = line.words && line.words.length > 0
@@ -100,27 +220,46 @@ function buildConstellationForLine(line: LyricLine, lineIndex: number): Constell
   const edges: ConstellationEdge[] = [];
 
   const themeColor = CONSTELLATION_PALETTE[lineIndex % CONSTELLATION_PALETTE.length];
+  const template = REAL_CONSTELLATIONS[lineIndex % REAL_CONSTELLATIONS.length];
 
-  // Base span across screen
-  const startX = 22 + (((lineIndex * 5) % 7) - 3);
-  const endX = 78 + (((lineIndex * 7) % 7) - 3);
-  const baseY = 45 + (((lineIndex * 11) % 7) - 3);
+  // Constellation Center across the viewport
+  const centerX = 50 + (((lineIndex * 5) % 9) - 4);
+  const centerY = 45 + (((lineIndex * 7) % 7) - 3);
 
-  // Sharp, varied celestial angle shifts for dramatic angular turns (NO LOOPS!)
-  const angleShifts = [-16, 14, -18, 16, -13, 15, -15, 17, -12, 16];
+  // Scale widths in viewport percentage (stays clear of turntable at bottom-left)
+  const scaleX = 28;
+  const scaleY = 20;
 
+  // Sample or interpolate points from the authentic constellation
   for (let i = 0; i < N; i++) {
     const w = words[i];
-    const progress = N === 1 ? 0.5 : i / (N - 1); // 0 to 1
 
-    // X progresses forward across the night sky
-    const x = startX + progress * (endX - startX);
+    let dx = 0;
+    let dy = 0;
+    let placement: 'top' | 'bottom' = 'top';
 
-    // Y takes sharp angular differences at every star vertex
-    const angleOffset = N === 1 ? 0 : angleShifts[i % angleShifts.length];
-    const y = Math.max(22, Math.min(68, baseY + angleOffset));
+    if (N === 1) {
+      dx = 0;
+      dy = 0;
+      placement = 'bottom';
+    } else {
+      // Map i across the template's real star points
+      const t = i / (N - 1);
+      const exactIndex = t * (template.points.length - 1);
+      const lowIndex = Math.floor(exactIndex);
+      const highIndex = Math.min(template.points.length - 1, Math.ceil(exactIndex));
+      const frac = exactIndex - lowIndex;
 
-    const placement: 'top' | 'bottom' = angleOffset < 0 ? 'top' : 'bottom';
+      const pLow = template.points[lowIndex];
+      const pHigh = template.points[highIndex];
+
+      dx = pLow.dx + (pHigh.dx - pLow.dx) * frac;
+      dy = pLow.dy + (pHigh.dy - pLow.dy) * frac;
+      placement = (pLow.labelPlacement || (dy < 0 ? 'top' : 'bottom')) as any;
+    }
+
+    const finalX = Math.max(18, Math.min(82, centerX + dx * scaleX));
+    const finalY = Math.max(22, Math.min(68, centerY + dy * scaleY));
 
     stars.push({
       id: `${line.id}-${i}`,
@@ -128,8 +267,8 @@ function buildConstellationForLine(line: LyricLine, lineIndex: number): Constell
       text: w.text,
       start: w.start,
       end: w.end,
-      x,
-      y,
+      x: finalX,
+      y: finalY,
       labelPlacement: placement,
       color: themeColor.active,
       threadColor: themeColor.thread,
@@ -143,10 +282,13 @@ function buildConstellationForLine(line: LyricLine, lineIndex: number): Constell
 
   return {
     lineId: line.id,
+    constellationName: template.name,
     start: line.start,
     end: line.end,
     stars,
     edges,
+    centerX,
+    centerY,
   };
 }
 
@@ -340,7 +482,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
         />
       </svg>
 
-      {/* 2. Constellations Layer: Connecting Angular Luminous Lines (NO LOOPS!) */}
+      {/* 2. Constellations Layer: Connecting Angular Luminous Lines (Authentic Star Map Paths, NO LOOPS!) */}
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none z-10"
         viewBox="0 0 100 100"
@@ -361,7 +503,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
                   x2={p2.x}
                   y2={p2.y}
                   stroke={p2.threadColor}
-                  strokeWidth="0.35"
+                  strokeWidth="0.38"
                   strokeLinecap="round"
                   style={{
                     filter: `drop-shadow(0 0 4px ${p2.threadColor})`,
@@ -381,6 +523,21 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
             style={{ opacity }}
             className="absolute inset-0 transition-opacity duration-300"
           >
+            {/* Elegant Sky Atlas Constellation Subtitle (From User's Star Map) */}
+            <div
+              className="absolute pointer-events-none select-none transition-opacity duration-500"
+              style={{
+                left: `${phrase.centerX}%`,
+                top: `${Math.max(16, phrase.centerY - 24)}%`,
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
+              <span className="text-[10px] md:text-xs font-mono uppercase tracking-[0.35em] text-amber-200/40">
+                ✦ {phrase.constellationName} ✦
+              </span>
+            </div>
+
+            {/* Stars and Word Labels */}
             {spawnedStars.map((star) => {
               const isActive = activeStar?.id === star.id;
 
