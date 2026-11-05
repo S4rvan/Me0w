@@ -9,6 +9,7 @@ import {
   Sparkles,
   Music,
   Disc3,
+  Lightbulb,
 } from 'lucide-react';
 
 import {
@@ -30,9 +31,9 @@ import {
   handleSpotifyCallback,
 } from './services/spotifyService';
 
-import { LyricsDisplay } from './components/LyricsDisplay';
+import { ThreadLyricsDisplay } from './components/ThreadLyricsDisplay';
+import { StringLights } from './components/StringLights';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
-import { EdgeLights } from './components/EdgeLights';
 import { SearchModal } from './components/SearchModal';
 import { SpotifyConnectModal } from './components/SpotifyConnectModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -41,10 +42,10 @@ import { ShareModal } from './components/ShareModal';
 import { LockscreenClock } from './components/LockscreenClock';
 
 const DEFAULT_PALETTE: ColorPalette = {
-  primary: '#1db954',
-  secondary: '#8b5cf6',
-  accent: '#06b6d4',
-  background: '#09090b',
+  primary: '#ffe0a3',
+  secondary: '#d4af37',
+  accent: '#ffffff',
+  background: '#000000',
 };
 
 export const App: React.FC = () => {
@@ -69,13 +70,14 @@ export const App: React.FC = () => {
   const [volume, setVolume] = useState(0.85);
   const [syncOffset, setSyncOffset] = useState(0);
 
-  // Appearance and Edge Lights
-  const [theme, setTheme] = useState<VisualTheme>('aurora');
+  // Appearance: Pure Black Screen + Soft String Lights
+  const [theme, setTheme] = useState<VisualTheme>('classic');
   const [fontSize, setFontSize] = useState<FontSizeSetting>('medium');
   const [palette, setPalette] = useState<ColorPalette>(DEFAULT_PALETTE);
-  const [edgeLightMode, setEdgeLightMode] = useState<EdgeLightMode>('ambilight');
-  const [edgeIntensity, setEdgeIntensity] = useState(0.85);
-  const [showClock, setShowClock] = useState(true);
+  const [stringLightsEnabled, setStringLightsEnabled] = useState(true);
+  const [stringLightsIntensity, setStringLightsIntensity] = useState(0.7);
+  const [edgeLightMode, setEdgeLightMode] = useState<EdgeLightMode>('off');
+  const [showClock, setShowClock] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -92,7 +94,7 @@ export const App: React.FC = () => {
   const [isWindowsAppOpen, setIsWindowsAppOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
-  // Audio element reference & high-precision frame loop
+  // Audio element reference & 60fps frame loop
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const idleTimeoutRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(performance.now());
@@ -135,7 +137,7 @@ export const App: React.FC = () => {
     }
   }, [currentTrack?.artworkUrl]);
 
-  // Load lyrics whenever current track title or artist changes
+  // Load lyrics whenever current track changes
   useEffect(() => {
     if (!currentTrack) return;
 
@@ -162,7 +164,7 @@ export const App: React.FC = () => {
       });
   }, [currentTrack?.title, currentTrack?.artist]);
 
-  // 60 FPS Buttery-Smooth Animation Loop
+  // 60 FPS Animation Loop
   useEffect(() => {
     lastFrameTimeRef.current = performance.now();
 
@@ -172,11 +174,10 @@ export const App: React.FC = () => {
 
       if (isPlaying) {
         const audio = audioRef.current;
-        // If real audio is playing, calibrate with audio.currentTime
         if (audio && !audio.paused && !isSpotifyActive) {
           setCurrentTime(audio.currentTime);
         } else {
-          // Virtual timer or Spotify interpolation
+          // Virtual timer or Spotify progress interpolation
           setCurrentTime((prev) => prev + delta);
         }
       }
@@ -299,7 +300,6 @@ export const App: React.FC = () => {
       audioRef.current.load();
       if (autoPlay) {
         audioRef.current.play().catch(() => {
-          // Autoplay policy: user must click play
           setIsPlaying(false);
         });
       }
@@ -345,12 +345,10 @@ export const App: React.FC = () => {
         audio.play().then(() => {
           setIsPlaying(true);
         }).catch(() => {
-          // Fallback to virtual timer
           setIsPlaying(true);
         });
       }
     } else {
-      // Virtual timer mode
       setIsPlaying((p) => !p);
     }
   };
@@ -361,14 +359,6 @@ export const App: React.FC = () => {
     if (audioRef.current && !isSpotifyActive && currentTrack?.previewUrl) {
       audioRef.current.currentTime = time;
     }
-  };
-
-  // Cycle edge lights mode
-  const cycleEdgeLight = () => {
-    const modes: EdgeLightMode[] = ['ambilight', 'neon', 'pulse', 'subtle', 'off'];
-    const idx = modes.indexOf(edgeLightMode);
-    const next = modes[(idx + 1) % modes.length];
-    setEdgeLightMode(next);
   };
 
   // Fullscreen toggle
@@ -395,7 +385,7 @@ export const App: React.FC = () => {
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Auto-hide controls on mouse idle
+  // Auto-hide controls on mouse idle for pure black screen immersion
   const handleMouseMove = () => {
     setControlsVisible(true);
     if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
@@ -404,7 +394,7 @@ export const App: React.FC = () => {
       if (isPlaying) {
         setControlsVisible(false);
       }
-    }, 3500);
+    }, 3000);
   };
 
   // Global keyboard shortcuts
@@ -425,7 +415,7 @@ export const App: React.FC = () => {
         setIsSearchOpen(true);
       } else if (e.code === 'KeyL') {
         e.preventDefault();
-        cycleEdgeLight();
+        setStringLightsEnabled((prev) => !prev);
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
         setSyncOffset((prev) => prev - 0.1);
@@ -440,7 +430,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [toggleFullscreen, isPlaying, edgeLightMode]);
+  }, [toggleFullscreen, isPlaying]);
 
   // Effective time with sync offset applied
   const effectiveTime = Math.max(0, currentTime + syncOffset);
@@ -448,48 +438,20 @@ export const App: React.FC = () => {
   return (
     <div
       onMouseMove={handleMouseMove}
-      className={`relative w-screen h-screen overflow-hidden flex flex-col justify-between font-sans transition-colors duration-1000 ${
-        theme === 'minimal' ? 'bg-[#050505]' : 'bg-[#09090b]'
-      }`}
-      style={{
-        backgroundColor: theme === 'classic' ? '#000000' : palette.background,
-      }}
+      className="relative w-screen h-screen overflow-hidden flex flex-col justify-between font-sans bg-black text-white select-none transition-colors duration-500"
     >
       {/* Hidden Audio Element */}
       <audio ref={audioRef} preload="auto" />
 
-      {/* Screen Edge Lights (Ambilight Border Glow) */}
-      <EdgeLights
-        mode={edgeLightMode}
-        palette={palette}
-        isPlaying={isPlaying}
-        intensity={edgeIntensity}
-      />
-
-      {/* Dynamic Ambient Background Canvas */}
-      {theme === 'aurora' && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-          <div
-            className="ambient-orb orb-1"
-            style={{
-              background: `radial-gradient(circle, ${palette.primary}66 0%, transparent 70%)`,
-            }}
-          />
-          <div
-            className="ambient-orb orb-2"
-            style={{
-              background: `radial-gradient(circle, ${palette.secondary}66 0%, transparent 70%)`,
-            }}
-          />
-          <div className="absolute inset-0 backdrop-blur-[120px] bg-black/40" />
-        </div>
+      {/* Gentle, Cozy String Lights (Fairy Lights) Along Top */}
+      {stringLightsEnabled && (
+        <StringLights
+          intensity={stringLightsIntensity}
+          isPlaying={isPlaying}
+        />
       )}
 
-      {theme === 'cyberpunk' && (
-        <div className="absolute inset-0 pointer-events-none z-0 cyberpunk-grid opacity-25" />
-      )}
-
-      {/* Top Header Navigation Bar */}
+      {/* Top Header Navigation Bar (Discreet, auto-hiding) */}
       <header
         className={`w-full z-40 transition-all duration-500 px-6 py-4 flex items-center justify-between ${
           controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
@@ -497,16 +459,16 @@ export const App: React.FC = () => {
       >
         {/* Brand & Track Info */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-lg">
-            <Disc3 className={`w-5 h-5 text-white ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
-            <span className="font-extrabold tracking-wider text-sm text-white uppercase">{appName}</span>
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.07] backdrop-blur-md border border-white/10 shadow-lg">
+            <Disc3 className={`w-4 h-4 text-white ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+            <span className="font-bold tracking-widest text-xs uppercase text-white/90">{appName}</span>
           </div>
 
           {currentTrack && (
-            <div className="hidden lg:flex items-center gap-2 text-xs text-white/60 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
-              <Music className="w-3.5 h-3.5 text-white/40" />
-              <span className="text-white font-medium">{currentTrack.title}</span>
-              <span className="text-white/30">•</span>
+            <div className="hidden lg:flex items-center gap-2 text-xs text-white/50 bg-white/[0.04] px-3 py-1.5 rounded-full border border-white/5">
+              <Music className="w-3.5 h-3.5 text-white/30" />
+              <span className="text-white/80 font-medium">{currentTrack.title}</span>
+              <span className="text-white/20">•</span>
               <span>{currentTrack.artist}</span>
             </div>
           )}
@@ -521,90 +483,78 @@ export const App: React.FC = () => {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
-          {/* Quick Edge Lights Button */}
+          {/* Toggle String Lights Button */}
           <button
-            onClick={cycleEdgeLight}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold backdrop-blur-md border transition ${
-              edgeLightMode !== 'off'
-                ? 'bg-amber-400/20 text-amber-300 border-amber-400/40 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
-                : 'bg-white/10 text-white/60 border-white/10 hover:text-white'
+            onClick={() => setStringLightsEnabled((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md border transition ${
+              stringLightsEnabled
+                ? 'bg-amber-400/15 text-amber-300 border-amber-400/30'
+                : 'bg-white/5 text-white/40 border-white/10 hover:text-white'
             }`}
-            title="Toggle Edge Lights (Hotkey: L)"
+            title="Toggle String Lights (Hotkey: L)"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Edge Lights</span>
+            <Lightbulb className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">String Lights</span>
           </button>
 
           {/* Search Button */}
           <button
             onClick={() => setIsSearchOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs backdrop-blur-md border border-white/10 transition shadow-lg"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-medium text-xs backdrop-blur-md border border-white/10 transition"
           >
-            <Search className="w-4 h-4" />
+            <Search className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Search</span>
           </button>
 
           {/* Spotify Connect Button */}
           <button
             onClick={() => setIsSpotifyOpen(true)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold backdrop-blur-md border transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md border transition ${
               isSpotifyActive
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
-                : 'bg-white/10 hover:bg-white/20 text-white border-white/10'
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                : 'bg-white/10 hover:bg-white/15 text-white border-white/10'
             }`}
           >
-            <Radio className={`w-4 h-4 ${isSpotifyActive ? 'animate-pulse text-emerald-400' : ''}`} />
-            <span className="hidden md:inline">{isSpotifyActive ? 'Spotify Live' : 'Spotify'}</span>
-          </button>
-
-          {/* Windows Desktop App Info */}
-          <button
-            onClick={() => setIsWindowsAppOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs backdrop-blur-md border border-white/10 transition"
-            title="Download / View Windows C# Desktop App"
-          >
-            <Monitor className="w-4 h-4" />
-            <span className="hidden lg:inline">Windows App</span>
+            <Radio className={`w-3.5 h-3.5 ${isSpotifyActive ? 'animate-pulse text-emerald-400' : ''}`} />
+            <span className="hidden md:inline">{isSpotifyActive ? 'Spotify Connected' : 'Spotify'}</span>
           </button>
 
           {/* Share Button */}
           <button
             onClick={() => setIsShareOpen(true)}
-            className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/10 transition"
+            className="p-2 rounded-full bg-white/10 hover:bg-white/15 text-white/80 hover:text-white backdrop-blur-md border border-white/10 transition"
             title="Share with Friends"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-3.5 h-3.5" />
           </button>
 
           {/* Settings Button */}
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/10 transition"
-            title="Display & Edge Light Settings"
+            className="p-2 rounded-full bg-white/10 hover:bg-white/15 text-white/80 hover:text-white backdrop-blur-md border border-white/10 transition"
+            title="Settings"
           >
-            <Sliders className="w-4 h-4" />
+            <Sliders className="w-3.5 h-3.5" />
           </button>
 
           {/* Fullscreen Button */}
           <button
             onClick={toggleFullscreen}
-            className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/10 transition"
+            className="p-2 rounded-full bg-white/10 hover:bg-white/15 text-white/80 hover:text-white backdrop-blur-md border border-white/10 transition"
             title="Toggle Fullscreen (F)"
           >
-            <Maximize2 className="w-4 h-4" />
+            <Maximize2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </header>
 
-      {/* Main Lyrics Viewport */}
-      <main className="relative flex-1 w-full h-full z-10 overflow-hidden">
-        <LyricsDisplay
+      {/* Main Vision Viewport: Black Screen + Word-by-Word Queue on Glowing Thread */}
+      <main className="relative flex-1 w-full h-full z-10 overflow-hidden bg-black">
+        <ThreadLyricsDisplay
           lines={lyrics}
           currentTime={effectiveTime}
           onSeek={handleSeek}
-          theme={theme}
           fontSize={fontSize}
-          palette={palette}
           isLoadingLyrics={isLoadingLyrics}
           hasLyrics={lyrics.length > 0}
           trackTitle={currentTrack?.title}
@@ -613,7 +563,7 @@ export const App: React.FC = () => {
         />
       </main>
 
-      {/* Bottom Media Player Bar */}
+      {/* Bottom Media Player Bar (Discreet, auto-hiding) */}
       <div
         className={`transition-all duration-500 ${
           controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
@@ -627,14 +577,14 @@ export const App: React.FC = () => {
           volume={volume}
           syncOffset={syncOffset}
           isFullscreen={isFullscreen}
-          edgeLightMode={edgeLightMode}
+          edgeLightMode={stringLightsEnabled ? 'subtle' : 'off'}
           onTogglePlay={togglePlay}
           onSeek={handleSeek}
           onVolumeChange={setVolume}
           onNudgeSync={(delta) => setSyncOffset((prev) => prev + delta)}
           onResetSync={() => setSyncOffset(0)}
           onToggleFullscreen={toggleFullscreen}
-          onCycleEdgeLight={cycleEdgeLight}
+          onCycleEdgeLight={() => setStringLightsEnabled((prev) => !prev)}
           isSpotifyActive={isSpotifyActive}
         />
       </div>
@@ -670,8 +620,8 @@ export const App: React.FC = () => {
         setFontSize={setFontSize}
         edgeLightMode={edgeLightMode}
         setEdgeLightMode={setEdgeLightMode}
-        edgeIntensity={edgeIntensity}
-        setEdgeIntensity={setEdgeIntensity}
+        edgeIntensity={stringLightsIntensity}
+        setEdgeIntensity={setStringLightsIntensity}
         showClock={showClock}
         setShowClock={setShowClock}
         wakeLockActive={wakeLockActive}

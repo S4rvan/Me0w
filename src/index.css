@@ -13,7 +13,7 @@
   }
 
   body {
-    background-color: #09090b;
+    background-color: #000000;
     color: #ffffff;
     font-family: var(--font-sans);
     overflow: hidden;
@@ -30,12 +30,12 @@
 
 /* Glassmorphism Panel */
 .glass-panel {
-  background: rgba(14, 14, 18, 0.7);
+  background: rgba(10, 10, 12, 0.75);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
-/* Hide Scrollbar while keeping scrollable */
+/* Hide Scrollbar */
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
@@ -44,85 +44,39 @@
   scrollbar-width: none;
 }
 
-/* Edge Lights Pulse Animation */
-@keyframes edgeBreathe {
+/* Fairy String Lights Twinkle */
+@keyframes fairyTwinkle {
   0% {
-    opacity: 0.75;
-    filter: brightness(0.9);
+    opacity: 0.65;
+    transform: scale(0.95);
   }
   50% {
     opacity: 1;
-    filter: brightness(1.2);
+    transform: scale(1.08);
   }
   100% {
     opacity: 0.75;
-    filter: brightness(0.9);
+    transform: scale(0.98);
   }
 }
 
-.animate-edge-breathe {
-  animation: edgeBreathe 4s ease-in-out infinite;
-}
-
-/* Dynamic Ambient Orbs */
-.ambient-orb {
-  position: absolute;
-  width: 70vw;
-  height: 70vw;
-  max-width: 800px;
-  max-height: 800px;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.5;
-  transition: all 1.8s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform, opacity;
-}
-
-.orb-1 {
-  top: -15%;
-  left: -10%;
-  animation: orbFloat1 20s ease-in-out infinite alternate;
-}
-
-.orb-2 {
-  bottom: -20%;
-  right: -10%;
-  animation: orbFloat2 24s ease-in-out infinite alternate;
-}
-
-@keyframes orbFloat1 {
-  0% {
-    transform: translate(0, 0) scale(1);
+/* Word Arrival on Thread */
+@keyframes wordArrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.92);
   }
-  50% {
-    transform: translate(12%, 18%) scale(1.15);
-  }
-  100% {
-    transform: translate(-8%, 10%) scale(0.95);
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
-@keyframes orbFloat2 {
-  0% {
-    transform: translate(0, 0) scale(1.05);
-  }
-  50% {
-    transform: translate(-14%, -12%) scale(0.9);
-  }
-  100% {
-    transform: translate(10%, -15%) scale(1.12);
-  }
+.animate-word-arrive {
+  animation: wordArrive 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Cyberpunk Grid Overlay */
-.cyberpunk-grid {
-  background-size: 50px 50px;
-  background-image: 
-    linear-gradient(to right, rgba(0, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 0, 128, 0.08) 1px, transparent 1px);
-}
-
-/* Fade in animation */
+/* Subtle fade in animation */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -135,5 +89,5 @@
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
