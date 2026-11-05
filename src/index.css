@@ -76,6 +76,84 @@
   animation: wordArrive 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Spinning Vinyl Record */
+@keyframes vinylSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-vinyl-spin {
+  animation: vinylSpin 3.5s linear infinite;
+}
+
+/* Ghostly Celestial Broken Circles */
+@keyframes celestialSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-celestial-spin {
+  animation: celestialSpin 80s linear infinite;
+  transform-origin: 50% 48%;
+}
+.animate-celestial-spin-reverse {
+  animation: celestialSpin 100s linear infinite reverse;
+  transform-origin: 50% 48%;
+}
+
+/* Active Word Broken Ring Pulse */
+@keyframes brokenRingPulse {
+  0% { transform: scale(0.96); opacity: 0.12; }
+  50% { transform: scale(1.08); opacity: 0.24; }
+  100% { transform: scale(0.96); opacity: 0.12; }
+}
+.animate-broken-ring-pulse {
+  animation: brokenRingPulse 2.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Water Droplet Impact & Puddle Ripples */
+@keyframes dropImpact {
+  0% { opacity: 0; transform: scale(0); }
+  50% { opacity: 0.85; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(2.2); }
+}
+.animate-drop-impact {
+  animation: dropImpact 0.8s ease-out forwards;
+}
+
+.water-ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+  animation: rippleExpand 3.2s cubic-bezier(0.1, 0.45, 0.3, 1) infinite;
+}
+
+.ripple-1 { width: 12px; height: 12px; animation-delay: 0s; }
+.ripple-2 { width: 12px; height: 12px; animation-delay: 0.7s; }
+.ripple-3 { width: 12px; height: 12px; animation-delay: 1.4s; }
+
+@keyframes rippleExpand {
+  0% {
+    width: 0px;
+    height: 0px;
+    opacity: 0.6;
+    border-color: rgba(255, 255, 255, 0.35);
+  }
+  60% {
+    opacity: 0.22;
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+  100% {
+    width: 240px;
+    height: 240px;
+    opacity: 0;
+    border-color: rgba(255, 255, 255, 0);
+  }
+}
+
 /* Subtle fade in animation */
 @keyframes fadeIn {
   from {
@@ -87,7 +165,6 @@
     transform: scale(1);
   }
 }
-
 .animate-fade-in {
   animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

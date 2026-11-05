@@ -4,12 +4,12 @@ import {
   Radio,
   Sliders,
   Share2,
-  Monitor,
   Maximize2,
-  Sparkles,
-  Music,
   Disc3,
   Lightbulb,
+  Volume2,
+  VolumeX,
+  RotateCcw,
 } from 'lucide-react';
 
 import {
@@ -33,7 +33,7 @@ import {
 
 import { ThreadLyricsDisplay } from './components/ThreadLyricsDisplay';
 import { StringLights } from './components/StringLights';
-import { AudioPlayerBar } from './components/AudioPlayerBar';
+import { CornerVinyl } from './components/CornerVinyl';
 import { SearchModal } from './components/SearchModal';
 import { SpotifyConnectModal } from './components/SpotifyConnectModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -394,7 +394,7 @@ export const App: React.FC = () => {
       if (isPlaying) {
         setControlsVisible(false);
       }
-    }, 3000);
+    }, 3200);
   };
 
   // Global keyboard shortcuts
@@ -457,21 +457,12 @@ export const App: React.FC = () => {
           controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
         }`}
       >
-        {/* Brand & Track Info */}
+        {/* Brand */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.07] backdrop-blur-md border border-white/10 shadow-lg">
             <Disc3 className={`w-4 h-4 text-white ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
             <span className="font-bold tracking-widest text-xs uppercase text-white/90">{appName}</span>
           </div>
-
-          {currentTrack && (
-            <div className="hidden lg:flex items-center gap-2 text-xs text-white/50 bg-white/[0.04] px-3 py-1.5 rounded-full border border-white/5">
-              <Music className="w-3.5 h-3.5 text-white/30" />
-              <span className="text-white/80 font-medium">{currentTrack.title}</span>
-              <span className="text-white/20">•</span>
-              <span>{currentTrack.artist}</span>
-            </div>
-          )}
         </div>
 
         {/* Lockscreen Clock */}
@@ -548,7 +539,7 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Vision Viewport: Black Screen + Word-by-Word Queue on Glowing Thread */}
+      {/* Main Vision Viewport: Black Screen + Water Ripples + Organic Scattered Words on Luminous Thread */}
       <main className="relative flex-1 w-full h-full z-10 overflow-hidden bg-black">
         <ThreadLyricsDisplay
           lines={lyrics}
@@ -563,30 +554,78 @@ export const App: React.FC = () => {
         />
       </main>
 
-      {/* Bottom Media Player Bar (Discreet, auto-hiding) */}
+      {/* Corner Spinning Vinyl Record in Bottom-Left (Replaces boring progress bar) */}
       <div
         className={`transition-all duration-500 ${
-          controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
+          controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'
         }`}
       >
-        <AudioPlayerBar
+        <CornerVinyl
           currentTrack={currentTrack}
           isPlaying={isPlaying}
           currentTime={currentTime}
           duration={duration}
-          volume={volume}
-          syncOffset={syncOffset}
-          isFullscreen={isFullscreen}
-          edgeLightMode={stringLightsEnabled ? 'subtle' : 'off'}
           onTogglePlay={togglePlay}
           onSeek={handleSeek}
-          onVolumeChange={setVolume}
-          onNudgeSync={(delta) => setSyncOffset((prev) => prev + delta)}
-          onResetSync={() => setSyncOffset(0)}
-          onToggleFullscreen={toggleFullscreen}
-          onCycleEdgeLight={() => setStringLightsEnabled((prev) => !prev)}
           isSpotifyActive={isSpotifyActive}
         />
+      </div>
+
+      {/* Bottom-Right Minimalist Sync Nudge & Volume Bar */}
+      <div
+        className={`fixed bottom-6 right-6 z-40 flex items-center gap-3 transition-all duration-500 ${
+          controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'
+        }`}
+      >
+        {/* Sync Nudge Pill */}
+        <div className="flex items-center gap-1 bg-black/60 backdrop-blur-xl border border-white/10 px-2.5 py-1.5 rounded-2xl text-xs">
+          <span className="text-white/40 text-[10px] mr-1 uppercase tracking-wider font-semibold">Sync:</span>
+          <button
+            onClick={() => setSyncOffset((prev) => prev - 0.1)}
+            className="px-1.5 py-0.5 rounded hover:bg-white/15 text-white/70 active:scale-95 font-mono"
+            title="Lyrics later (-0.1s)"
+          >
+            -0.1s
+          </button>
+          <span className="font-mono text-white/90 text-xs px-1">
+            {syncOffset >= 0 ? `+${syncOffset.toFixed(1)}s` : `${syncOffset.toFixed(1)}s`}
+          </span>
+          <button
+            onClick={() => setSyncOffset((prev) => prev + 0.1)}
+            className="px-1.5 py-0.5 rounded hover:bg-white/15 text-white/70 active:scale-95 font-mono"
+            title="Lyrics earlier (+0.1s)"
+          >
+            +0.1s
+          </button>
+          {syncOffset !== 0 && (
+            <button
+              onClick={() => setSyncOffset(0)}
+              className="p-1 rounded hover:bg-white/15 text-white/40 hover:text-white ml-0.5"
+              title="Reset sync"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Volume Slider */}
+        <div className="hidden sm:flex items-center gap-2 bg-black/60 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-2xl">
+          <button
+            onClick={() => setVolume((v) => (v === 0 ? 0.8 : 0))}
+            className="text-white/70 hover:text-white transition"
+          >
+            {volume === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            className="w-14 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-white"
+          />
+        </div>
       </div>
 
       {/* Interactive Modals */}

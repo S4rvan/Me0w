@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { LyricLine, FontSizeSetting } from '../types';
+import { WaterPuddle } from './WaterPuddle';
 
 interface ThreadLyricsDisplayProps {
   lines: LyricLine[];
@@ -19,10 +20,32 @@ interface FlattenedWord {
   text: string;
   start: number;
   end: number;
+  x: number; // percentage (0 - 100)
+  y: number; // percentage (0 - 100)
 }
 
 const QUEUE_CAP = 11; // 10-12 words in queue
-const IDLE_FADE_DELAY = 1.4; // Fade words after 1.4s of no singing
+const IDLE_FADE_DELAY = 1.3; // Fade words after 1.3s of no singing
+
+// Golden spiral organic coordinate generator
+function getOrganicWordCoordinates(index: number): { x: number; y: number } {
+  // Golden ratio angle distribution for celestial scattered placement
+  const goldenAngle = 2.3999632; // ~137.5 degrees
+  const angle = index * goldenAngle + 0.5;
+
+  // Varied radius from center (20% to 38% radius)
+  const radiusX = 20 + ((index * 7) % 18);
+  const radiusY = 15 + ((index * 5) % 14);
+
+  const cx = 50 + Math.cos(angle) * radiusX;
+  const cy = 48 + Math.sin(angle) * radiusY;
+
+  // Clamp within safe lyrics boundary (away from string lights & bottom-left vinyl)
+  return {
+    x: Math.max(18, Math.min(82, cx)),
+    y: Math.max(22, Math.min(76, cy)),
+  };
+}
 
 export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
   lines,
@@ -35,26 +58,26 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
   trackArtist,
   onOpenSearch,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const wordRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
-  const [threadPaths, setThreadPaths] = useState<string[]>([]);
-  const [anchorDots, setAnchorDots] = useState<{ x: number; y: number }[]>([]);
-
-  // 1. Flatten all lyric words into chronological array
+  // 1. Flatten all lyric words into chronological array with pre-computed organic positions
   const allWords = useMemo<FlattenedWord[]>(() => {
     const list: FlattenedWord[] = [];
     let counter = 0;
+
     for (const line of lines) {
       if (!line.words || line.words.length === 0) continue;
       for (const w of line.words) {
         if (!w.text.trim()) continue;
+        const pos = getOrganicWordCoordinates(counter);
         list.push({
-          id: counter++,
+          id: counter,
           lineId: line.id,
           text: w.text.trim(),
           start: w.start,
           end: w.end,
+          x: pos.x,
+          y: pos.y,
         });
+        counter++;
       }
     }
     return list;
@@ -63,7 +86,6 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
   // 2. Find current word index based on currentTime
   const currentWordIndex = useMemo(() => {
     if (allWords.length === 0) return -1;
-    // Before first word
     if (currentTime < allWords[0].start - 0.1) return -1;
 
     for (let i = allWords.length - 1; i >= 0; i--) {
@@ -82,13 +104,12 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
     const currentWord = allWords[currentWordIndex];
     const timeSinceEnd = currentTime - currentWord.end;
 
-    // Check if next word exists and when it starts
     const nextWord = allWords[currentWordIndex + 1];
     const isWaitingForNext = nextWord ? currentTime < nextWord.start : true;
 
     if (timeSinceEnd > IDLE_FADE_DELAY && isWaitingForNext) {
-      // Fade out over 1.2s
-      const fadeProgress = Math.min(1, (timeSinceEnd - IDLE_FADE_DELAY) / 1.2);
+      // Fade out over 1.1s
+      const fadeProgress = Math.min(1, (timeSinceEnd - IDLE_FADE_DELAY) / 1.1);
       return {
         isInstrumental: fadeProgress >= 1,
         idleFadeRatio: 1 - fadeProgress,
@@ -107,70 +128,37 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
     return allWords.slice(startIndex, endIndex + 1);
   }, [allWords, currentWordIndex, isInstrumental]);
 
-  // 5. Measure word positions and calculate connecting SVG threads
-  useEffect(() => {
-    if (queueWords.length <= 1 || isInstrumental) {
-      setThreadPaths([]);
-      setAnchorDots([]);
-      return;
-    }
+  // 5. Generate connecting thread paths directly from coordinates (NO layout thrashing!)
+  const threadPaths = useMemo(() => {
+    if (queueWords.length <= 1) return [];
 
-    const container = containerRef.current;
-    if (!container) return;
-
-    const containerRect = container.getBoundingClientRect();
     const paths: string[] = [];
-    const dots: { x: number; y: number }[] = [];
+    for (let i = 0; i < queueWords.length - 1; i++) {
+      const p1 = queueWords[i];
+      const p2 = queueWords[i + 1];
 
-    for (let i = 0; i < queueWords.length; i++) {
-      const currentEl = wordRefs.current.get(queueWords[i].id);
-      if (!currentEl) continue;
+      // Organic curved spline between words
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      // Slight perpendicular curve offset
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const curveX = midX - dy * 0.15;
+      const curveY = midY + dx * 0.15;
 
-      const r1 = currentEl.getBoundingClientRect();
-      const x1 = r1.left - containerRect.left + r1.width / 2;
-      const y1 = r1.top - containerRect.top + r1.height / 2;
-
-      dots.push({ x: x1, y: y1 });
-
-      if (i < queueWords.length - 1) {
-        const nextEl = wordRefs.current.get(queueWords[i + 1].id);
-        if (!nextEl) continue;
-
-        const r2 = nextEl.getBoundingClientRect();
-        const startX = r1.right - containerRect.left + 3;
-        const startY = r1.top - containerRect.top + r1.height / 2;
-        const endX = r2.left - containerRect.left - 3;
-        const endY = r2.top - containerRect.top + r2.height / 2;
-
-        const isSameLine = Math.abs(startY - endY) < 18;
-
-        if (isSameLine) {
-          // Gentle hanging sagging thread arc between adjacent words
-          const midX = (startX + endX) / 2;
-          const sagY = startY + 8; // subtle natural thread sag
-          paths.push(`M ${startX},${startY} Q ${midX},${sagY} ${endX},${endY}`);
-        } else {
-          // Elegant S-curve connecting to word on the next line
-          const dx = Math.abs(endX - startX) * 0.4;
-          paths.push(
-            `M ${startX},${startY} C ${startX + dx},${startY + 20} ${endX - dx},${endY - 20} ${endX},${endY}`
-          );
-        }
-      }
+      paths.push(`M ${p1.x},${p1.y} Q ${curveX},${curveY} ${p2.x},${p2.y}`);
     }
-
-    setThreadPaths(paths);
-    setAnchorDots(dots);
-  }, [queueWords, isInstrumental, fontSize]);
+    return paths;
+  }, [queueWords]);
 
   // Font size multiplier
   const fontSizeClass = useMemo(() => {
     switch (fontSize) {
-      case 'small': return 'text-xl md:text-3xl tracking-wide';
-      case 'large': return 'text-3xl md:text-5xl tracking-normal';
-      case 'huge': return 'text-4xl md:text-6xl tracking-tight';
+      case 'small': return 'text-lg md:text-2xl';
+      case 'large': return 'text-2xl md:text-4xl';
+      case 'huge': return 'text-3xl md:text-5xl';
       case 'medium':
-      default: return 'text-2xl md:text-4xl tracking-normal';
+      default: return 'text-xl md:text-3xl';
     }
   }, [fontSize]);
 
@@ -178,9 +166,9 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
   if (isLoadingLyrics) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center px-6 select-none bg-black">
-        <div className="w-10 h-10 mb-4 rounded-full border-2 border-t-white border-white/10 animate-spin" />
-        <p className="text-sm font-mono text-white/50 tracking-widest uppercase animate-pulse">
-          Connecting lyrics...
+        <div className="w-8 h-8 mb-4 rounded-full border-2 border-t-white border-white/10 animate-spin" />
+        <p className="text-xs font-mono text-white/40 tracking-widest uppercase animate-pulse">
+          Summoning lyrics...
         </p>
       </div>
     );
@@ -191,129 +179,156 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
     return (
       <div className="flex flex-col items-center justify-center h-full text-center px-6 select-none bg-black">
         <h2 className="text-xl md:text-2xl font-light text-white/70 mb-2 tracking-wider">
-          {trackTitle ? trackTitle : 'Quiet Screen'}
+          {trackTitle ? trackTitle : 'Tranquil Night'}
         </h2>
         <p className="text-xs text-white/40 mb-6 font-mono tracking-widest">
-          {trackArtist ? trackArtist : 'Play music to summon words onto the thread'}
+          {trackArtist ? trackArtist : 'Play a track to watch words materialize'}
         </p>
         {onOpenSearch && (
           <button
             onClick={onOpenSearch}
-            className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs tracking-wider border border-white/15 transition shadow-lg"
+            className="px-5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs tracking-wider border border-white/15 transition shadow-lg"
           >
-            Choose a Song
+            Choose a Track
           </button>
         )}
       </div>
     );
   }
 
+  const activeWord = currentWordIndex !== -1 ? allWords[currentWordIndex] : null;
+
   return (
-    <div
-      ref={containerRef}
-      className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden px-8 md:px-24 select-none"
-    >
-      {/* Connecting Glowing Threads Layer */}
+    <div className="relative w-full h-full bg-black overflow-hidden select-none">
+      {/* 1. Ghostly Broken Celestial Circle in Background (Ultra-transparent: ~0.08) */}
+      <svg
+        className="absolute inset-0 w-full h-full pointer-events-none z-0"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <circle
+          cx="50"
+          cy="48"
+          r="32"
+          fill="none"
+          stroke="rgba(255, 255, 255, 0.08)"
+          strokeWidth="0.3"
+          strokeDasharray="2 4"
+          className="animate-celestial-spin"
+        />
+        <circle
+          cx="50"
+          cy="48"
+          r="42"
+          fill="none"
+          stroke="rgba(255, 255, 255, 0.05)"
+          strokeWidth="0.25"
+          strokeDasharray="4 8"
+          className="animate-celestial-spin-reverse"
+        />
+      </svg>
+
+      {/* 2. Water Puddle Ripples During Instrumental / Blank Screen */}
+      {isInstrumental && <WaterPuddle />}
+
+      {/* 3. Connecting Luminous Threads SVG */}
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none z-10 transition-opacity duration-700"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
         style={{ opacity: idleFadeRatio }}
       >
-        {/* Shadow / Glow blur under thread */}
+        {/* Soft thread glow */}
         {threadPaths.map((d, idx) => (
           <path
             key={`glow-${idx}`}
             d={d}
             fill="none"
-            stroke="rgba(255, 235, 190, 0.3)"
-            strokeWidth="3.5"
-            style={{ filter: 'blur(3px)' }}
+            stroke="rgba(255, 235, 190, 0.25)"
+            strokeWidth="0.8"
+            style={{ filter: 'blur(1px)' }}
           />
         ))}
 
-        {/* Crisp luminous core thread */}
+        {/* Core delicate luminous thread */}
         {threadPaths.map((d, idx) => (
           <path
             key={`core-${idx}`}
             d={d}
             fill="none"
-            stroke="rgba(255, 245, 225, 0.75)"
-            strokeWidth="1.4"
-            strokeDasharray="none"
+            stroke="rgba(255, 255, 255, 0.65)"
+            strokeWidth="0.35"
           />
         ))}
 
-        {/* Glowing Anchor Dots at each word */}
-        {anchorDots.map((dot, idx) => (
+        {/* Ultra-transparent broken circle around the active singing word */}
+        {activeWord && (
           <circle
-            key={`dot-${idx}`}
-            cx={dot.x}
-            cy={dot.y}
-            r="2"
-            fill="#ffffff"
-            style={{
-              filter: 'drop-shadow(0 0 4px rgba(255, 255, 255, 0.9))',
-            }}
+            cx={activeWord.x}
+            cy={activeWord.y}
+            r="4.5"
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.15)"
+            strokeWidth="0.3"
+            strokeDasharray="1.2 2"
+            className="animate-broken-ring-pulse"
           />
-        ))}
+        )}
       </svg>
 
-      {/* Words Container (Center Cluster Queue) */}
+      {/* 4. Scattered Words Queue (Random organic positions) */}
       <div
-        className="relative z-20 max-w-4xl flex flex-wrap items-center justify-center gap-x-5 md:gap-x-7 gap-y-6 md:gap-y-9 text-center transition-all duration-700"
-        style={{
-          opacity: idleFadeRatio,
-          transform: isInstrumental ? 'scale(0.97)' : 'scale(1)',
-        }}
+        className="absolute inset-0 z-20 pointer-events-none transition-opacity duration-700"
+        style={{ opacity: idleFadeRatio }}
       >
         {queueWords.map((word, qIdx) => {
-          const isCurrent = word.id === allWords[currentWordIndex]?.id;
+          const isCurrent = word.id === activeWord?.id;
           const isEntering = qIdx === queueWords.length - 1;
           const isOldest = qIdx === 0 && queueWords.length >= QUEUE_CAP;
 
-          // Word opacity: older words in queue softly dim, newest illuminates
+          // Opacity fade as words age in the 10-12 word queue
           let wordOpacity = 0.75;
-          let textShadow = '0 0 10px rgba(255, 255, 255, 0.2)';
+          let textShadow = '0 0 8px rgba(255, 255, 255, 0.2)';
           let textColor = 'text-white/80';
 
           if (isCurrent) {
             wordOpacity = 1;
-            textShadow = '0 0 20px rgba(255, 255, 255, 0.9), 0 0 35px rgba(255, 235, 190, 0.4)';
+            textShadow = '0 0 18px rgba(255, 255, 255, 0.95), 0 0 30px rgba(255, 235, 190, 0.4)';
             textColor = 'text-white';
           } else if (isOldest) {
-            wordOpacity = 0.4;
+            wordOpacity = 0.35;
           }
 
           return (
-            <span
+            <div
               key={word.id}
-              ref={(el) => {
-                if (el) wordRefs.current.set(word.id, el);
-                else wordRefs.current.delete(word.id);
+              onClick={(e) => {
+                e.stopPropagation();
+                onSeek(word.start);
               }}
-              onClick={() => onSeek(word.start)}
+              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer"
               style={{
-                opacity: wordOpacity,
-                textShadow,
-                transition: 'opacity 0.5s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
-                transform: isCurrent ? 'scale(1.05)' : isOldest ? 'scale(0.95)' : 'scale(1)',
+                left: `${word.x}%`,
+                top: `${word.y}%`,
               }}
-              className={`relative inline-block font-medium cursor-pointer ${fontSizeClass} ${textColor} ${
-                isEntering ? 'animate-word-arrive' : ''
-              }`}
             >
-              {word.text}
-            </span>
+              <span
+                style={{
+                  opacity: wordOpacity,
+                  textShadow,
+                  transition: 'opacity 0.4s ease, transform 0.4s ease',
+                  transform: isCurrent ? 'scale(1.08)' : isOldest ? 'scale(0.92)' : 'scale(1)',
+                }}
+                className={`inline-block font-medium tracking-normal select-none ${fontSizeClass} ${textColor} ${
+                  isEntering ? 'animate-word-arrive' : ''
+                }`}
+              >
+                {word.text}
+              </span>
+            </div>
           );
         })}
       </div>
-
-      {/* Pure black tranquility during instrumental */}
-      {isInstrumental && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none animate-fade-in">
-          {/* Completely black screen - whisper quiet dot */}
-          <div className="w-1.5 h-1.5 rounded-full bg-white/10 animate-ping" />
-        </div>
-      )}
     </div>
   );
 };
