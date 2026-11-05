@@ -121,12 +121,15 @@ function parseOrInterpolateWords(
   const parts = cleanText.split(/\s+/).filter(Boolean);
   if (parts.length === 0) return [];
 
+  const totalChars = parts.reduce((sum, p) => sum + p.length, 0);
   const rawSpan = Math.max(0.8, lineEnd - lineStart);
 
-  // If gap between lines is long (> 6.5s), vocal singing takes the natural phrase (3.5-5.5s), rest is instrumental silence
-  const vocalSpan = rawSpan > 6.5
-    ? Math.min(rawSpan - 1.2, Math.max(3.6, rawSpan * 0.6))
-    : Math.max(0.6, rawSpan - 0.2); // natural 0.2s breath before next line
+  // Natural vocal phrasing: in songs, a vocal line is delivered in the first ~70-80% of the bar,
+  // leaving natural musical breathing room before the next lyric line begins.
+  const estimatedVocalTime = totalChars * 0.11 + 0.35;
+  const vocalSpan = rawSpan > 6.0
+    ? Math.min(rawSpan - 1.2, Math.max(3.0, rawSpan * 0.55))
+    : Math.min(Math.max(0.8, rawSpan * 0.78), Math.max(1.2, estimatedVocalTime));
 
   // Compute musical weights:
   // Chorus vocalizations ("ooh", "aah", "yeah", "baby", "woah", etc.) are held notes and get extended duration

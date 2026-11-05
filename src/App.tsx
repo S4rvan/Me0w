@@ -349,10 +349,47 @@ export const App: React.FC = () => {
     selectTrack(customTrack, true);
   };
 
-  // Play / Pause toggle with virtual timer fallback
+  // Next / Previous Track Skipping Controls
+  const handleNextTrack = () => {
+    if (isSpotifyActive && spotifyToken) {
+      fetch('https://api.spotify.com/v1/me/player/next', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${spotifyToken}` },
+      }).catch(console.warn);
+      return;
+    }
+
+    const currentIndex = DEMO_TRACKS.findIndex((t) => t.id === currentTrack?.id);
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % DEMO_TRACKS.length : 0;
+    selectTrack(DEMO_TRACKS[nextIndex], true);
+  };
+
+  const handlePrevTrack = () => {
+    if (isSpotifyActive && spotifyToken) {
+      fetch('https://api.spotify.com/v1/me/player/previous', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${spotifyToken}` },
+      }).catch(console.warn);
+      return;
+    }
+
+    const currentIndex = DEMO_TRACKS.findIndex((t) => t.id === currentTrack?.id);
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : DEMO_TRACKS.length - 1;
+    selectTrack(DEMO_TRACKS[prevIndex], true);
+  };
+
+  // Play / Pause toggle with Spotify API & audio fallback
   const togglePlay = () => {
-    if (isSpotifyActive) {
-      alert('Spotify is connected! Control playback directly in your Spotify app, or pause it there.');
+    if (isSpotifyActive && spotifyToken) {
+      const endpoint = isPlaying
+        ? 'https://api.spotify.com/v1/me/player/pause'
+        : 'https://api.spotify.com/v1/me/player/play';
+      fetch(endpoint, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${spotifyToken}` },
+      })
+        .then(() => setIsPlaying(!isPlaying))
+        .catch(console.warn);
       return;
     }
 
@@ -362,11 +399,15 @@ export const App: React.FC = () => {
         audio.pause();
         setIsPlaying(false);
       } else {
-        audio.play().then(() => {
-          setIsPlaying(true);
-        }).catch(() => {
-          setIsPlaying(true);
-        });
+        audio
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch((err) => {
+            console.warn('Audio play error, falling back to visual timer:', err);
+            setIsPlaying(true);
+          });
       }
     } else {
       setIsPlaying((p) => !p);
@@ -445,6 +486,12 @@ export const App: React.FC = () => {
       } else if (e.code === 'KeyM') {
         e.preventDefault();
         setVolume((v) => (v === 0 ? 0.8 : 0));
+      } else if (e.code === 'KeyN') {
+        e.preventDefault();
+        handleNextTrack();
+      } else if (e.code === 'KeyP') {
+        e.preventDefault();
+        handlePrevTrack();
       }
     };
 
@@ -452,8 +499,8 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [toggleFullscreen, isPlaying]);
 
-  // Effective time with sync offset applied
-  const effectiveTime = Math.max(0, currentTime + syncOffset);
+  // Effective time with track audio offset and user sync offset applied
+  const effectiveTime = Math.max(0, currentTime + (currentTrack?.audioOffset || 0) + syncOffset);
 
   return (
     <div
@@ -600,6 +647,8 @@ export const App: React.FC = () => {
         onTogglePlay={togglePlay}
         onSeek={handleSeek}
         isSpotifyActive={isSpotifyActive}
+        onNextTrack={handleNextTrack}
+        onPrevTrack={handlePrevTrack}
       />
 
       {/* Bottom-Right Minimalist Sync Nudge & Volume Bar */}

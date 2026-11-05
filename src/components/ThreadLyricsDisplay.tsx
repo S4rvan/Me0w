@@ -17,7 +17,7 @@ interface ThreadLyricsDisplayProps {
   setIsInstrumental: (val: boolean) => void;
 }
 
-// 4-Point Sparkle Diamond Star (Matches the exact astronomical stars in the user's reference video)
+// 4-Point Sparkle Diamond Star (Astronomical star vertex)
 interface DiamondStarProps {
   size: number;
   isActive: boolean;
@@ -34,7 +34,7 @@ const DiamondStar: React.FC<DiamondStarProps> = ({ size, isActive, color }) => {
       className="overflow-visible pointer-events-none inline-block flex-shrink-0"
       style={{
         filter: isActive
-          ? `drop-shadow(0 0 6px ${color}) drop-shadow(0 0 14px ${color})`
+          ? `drop-shadow(0 0 8px ${color}) drop-shadow(0 0 18px ${color})`
           : `drop-shadow(0 0 2px ${color})`,
       }}
     >
@@ -44,12 +44,11 @@ const DiamondStar: React.FC<DiamondStarProps> = ({ size, isActive, color }) => {
         fill={color}
       />
       {/* Bright Stellar White Core */}
-      <circle cx="0" cy="0" r={Math.max(1.2, r * 0.28)} fill="#ffffff" />
+      <circle cx="0" cy="0" r={Math.max(1.5, r * 0.3)} fill="#ffffff" />
     </svg>
   );
 };
 
-// Constellation Data Structures
 export interface ConstellationStar {
   id: string;
   wordIndex: number;
@@ -58,7 +57,7 @@ export interface ConstellationStar {
   end: number;
   x: number; // Viewport % (18 - 82)
   y: number; // Viewport % (22 - 68)
-  labelPlacement: 'top' | 'bottom' | 'left' | 'right';
+  labelPlacement: 'top' | 'bottom';
   color: string;
   threadColor: string;
 }
@@ -76,20 +75,20 @@ export interface ConstellationPhrase {
   edges: ConstellationEdge[];
 }
 
-// Warm Celestial / TV Girl Constellation Palette (from the video: coral, peach, amber, rose)
+// Warm Celestial Constellation Palette (coral, peach, amber, rose, lilac, sky)
 const CONSTELLATION_PALETTE = [
-  { text: '#fca5a5', active: '#f87171', thread: 'rgba(248, 113, 113, 0.45)', glow: 'rgba(248, 113, 113, 0.4)' },
-  { text: '#fbcfe8', active: '#f472b6', thread: 'rgba(244, 114, 182, 0.45)', glow: 'rgba(244, 114, 182, 0.4)' },
-  { text: '#fed7aa', active: '#fb923c', thread: 'rgba(251, 146, 60, 0.45)', glow: 'rgba(251, 146, 60, 0.4)' },
-  { text: '#fef08a', active: '#facc15', thread: 'rgba(250, 204, 21, 0.45)', glow: 'rgba(250, 204, 21, 0.4)' },
-  { text: '#ddd6fe', active: '#c084fc', thread: 'rgba(192, 132, 252, 0.45)', glow: 'rgba(192, 132, 252, 0.4)' },
-  { text: '#bae6fd', active: '#38bdf8', thread: 'rgba(56, 189, 248, 0.45)', glow: 'rgba(56, 189, 248, 0.4)' },
+  { text: '#fca5a5', active: '#f87171', thread: 'rgba(248, 113, 113, 0.55)', glow: 'rgba(248, 113, 113, 0.45)' },
+  { text: '#fbcfe8', active: '#f472b6', thread: 'rgba(244, 114, 182, 0.55)', glow: 'rgba(244, 114, 182, 0.45)' },
+  { text: '#fed7aa', active: '#fb923c', thread: 'rgba(251, 146, 60, 0.55)', glow: 'rgba(251, 146, 60, 0.45)' },
+  { text: '#fef08a', active: '#facc15', thread: 'rgba(250, 204, 21, 0.55)', glow: 'rgba(250, 204, 21, 0.45)' },
+  { text: '#ddd6fe', active: '#c084fc', thread: 'rgba(192, 132, 252, 0.55)', glow: 'rgba(192, 132, 252, 0.45)' },
+  { text: '#bae6fd', active: '#38bdf8', thread: 'rgba(56, 189, 248, 0.55)', glow: 'rgba(56, 189, 248, 0.45)' },
 ];
 
 /**
- * Generates an authentic astronomical constellation layout for each lyric phrase
- * (e.g. Ursa Major, Orion, Cassiopeia, Cygnus geometric archetypes).
- * Guarantees zero overlapping between stars and readable label placement.
+ * Builds an angular celestial constellation chain:
+ * Progresses forward across the sky with sharp, dramatic angle differences at each star vertex.
+ * STRICTLY ZERO LOOPS OR CYCLES as requested.
  */
 function buildConstellationForLine(line: LyricLine, lineIndex: number): ConstellationPhrase {
   const words = line.words && line.words.length > 0
@@ -102,182 +101,43 @@ function buildConstellationForLine(line: LyricLine, lineIndex: number): Constell
 
   const themeColor = CONSTELLATION_PALETTE[lineIndex % CONSTELLATION_PALETTE.length];
 
-  // Base constellation center (subtly shifts per phrase for natural sky variety)
-  const centerX = 50 + (((lineIndex * 7) % 11) - 5);
-  const centerY = 44 + (((lineIndex * 13) % 9) - 4);
+  // Base span across screen
+  const startX = 22 + (((lineIndex * 5) % 7) - 3);
+  const endX = 78 + (((lineIndex * 7) % 7) - 3);
+  const baseY = 45 + (((lineIndex * 11) % 7) - 3);
 
-  // Geometric Constellation Archetypes based on star count
-  if (N === 1) {
+  // Sharp, varied celestial angle shifts for dramatic angular turns (NO LOOPS!)
+  const angleShifts = [-16, 14, -18, 16, -13, 15, -15, 17, -12, 16];
+
+  for (let i = 0; i < N; i++) {
+    const w = words[i];
+    const progress = N === 1 ? 0.5 : i / (N - 1); // 0 to 1
+
+    // X progresses forward across the night sky
+    const x = startX + progress * (endX - startX);
+
+    // Y takes sharp angular differences at every star vertex
+    const angleOffset = N === 1 ? 0 : angleShifts[i % angleShifts.length];
+    const y = Math.max(22, Math.min(68, baseY + angleOffset));
+
+    const placement: 'top' | 'bottom' = angleOffset < 0 ? 'top' : 'bottom';
+
     stars.push({
-      id: `${line.id}-0`,
-      wordIndex: 0,
-      text: words[0].text,
-      start: words[0].start,
-      end: words[0].end,
-      x: centerX,
-      y: centerY,
-      labelPlacement: 'bottom',
+      id: `${line.id}-${i}`,
+      wordIndex: i,
+      text: w.text,
+      start: w.start,
+      end: w.end,
+      x,
+      y,
+      labelPlacement: placement,
       color: themeColor.active,
       threadColor: themeColor.thread,
     });
-  } else if (N === 2) {
-    // Binary Star Pair (matches video frame 00:05 "about - all")
-    stars.push(
-      {
-        id: `${line.id}-0`,
-        wordIndex: 0,
-        text: words[0].text,
-        start: words[0].start,
-        end: words[0].end,
-        x: centerX - 12,
-        y: centerY + 2,
-        labelPlacement: 'left',
-        color: themeColor.active,
-        threadColor: themeColor.thread,
-      },
-      {
-        id: `${line.id}-1`,
-        wordIndex: 1,
-        text: words[1].text,
-        start: words[1].start,
-        end: words[1].end,
-        x: centerX + 12,
-        y: centerY - 2,
-        labelPlacement: 'right',
-        color: themeColor.active,
-        threadColor: themeColor.thread,
-      }
-    );
-    edges.push({ fromIndex: 0, toIndex: 1 });
-  } else if (N === 3) {
-    // Celestial Triangle (matches video frame 00:06 "about - mac - is")
-    stars.push(
-      {
-        id: `${line.id}-0`,
-        wordIndex: 0,
-        text: words[0].text,
-        start: words[0].start,
-        end: words[0].end,
-        x: centerX - 14,
-        y: centerY + 8,
-        labelPlacement: 'bottom',
-        color: themeColor.active,
-        threadColor: themeColor.thread,
-      },
-      {
-        id: `${line.id}-1`,
-        wordIndex: 1,
-        text: words[1].text,
-        start: words[1].start,
-        end: words[1].end,
-        x: centerX,
-        y: centerY - 10,
-        labelPlacement: 'top',
-        color: themeColor.active,
-        threadColor: themeColor.thread,
-      },
-      {
-        id: `${line.id}-2`,
-        wordIndex: 2,
-        text: words[2].text,
-        start: words[2].start,
-        end: words[2].end,
-        x: centerX + 16,
-        y: centerY + 6,
-        labelPlacement: 'right',
-        color: themeColor.active,
-        threadColor: themeColor.thread,
-      }
-    );
-    edges.push({ fromIndex: 0, toIndex: 1 });
-    edges.push({ fromIndex: 1, toIndex: 2 });
-    edges.push({ fromIndex: 2, toIndex: 0 }); // closed loop
-  } else {
-    // Multi-Star Astronomical Constellation (Ursa Major, Orion, Cassiopeia shapes from video)
-    // Select archetype template
-    const archetype = lineIndex % 4;
 
-    for (let i = 0; i < N; i++) {
-      const w = words[i];
-      const progress = i / (N - 1); // 0 to 1
-
-      let relX = 0;
-      let relY = 0;
-      let placement: 'top' | 'bottom' | 'left' | 'right' = 'top';
-
-      if (archetype === 0) {
-        // The Great Dipper: Handle curving down, bowl forming enclosed quad
-        if (progress < 0.45) {
-          relX = -26 + progress * 32;
-          relY = 12 - Math.sin(progress * Math.PI) * 16;
-          placement = 'bottom';
-        } else {
-          // Bowl quad
-          const bowlIdx = i - Math.floor(N * 0.45);
-          const bowlOffsets = [
-            { x: -4, y: -8, p: 'top' },
-            { x: 16, y: -12, p: 'top' },
-            { x: 24, y: 10, p: 'right' },
-            { x: 6, y: 14, p: 'bottom' },
-          ];
-          const b = bowlOffsets[bowlIdx % bowlOffsets.length];
-          relX = b.x;
-          relY = b.y;
-          placement = b.p as any;
-        }
-      } else if (archetype === 1) {
-        // The Hunter / Hourglass (Orion style from frame 00:04)
-        const angles = [-150, -45, 0, 45, 140, 90, -90, 180];
-        const rad = (angles[i % angles.length] * Math.PI) / 180;
-        const dist = 14 + (i % 3) * 6;
-        relX = Math.cos(rad) * dist * 1.3;
-        relY = Math.sin(rad) * dist;
-        placement = relY < 0 ? 'top' : 'bottom';
-      } else if (archetype === 2) {
-        // Cassiopeia Zig-Zag W-shape
-        relX = (progress - 0.5) * 54;
-        relY = Math.sin(progress * Math.PI * 2.2) * 14;
-        placement = relY < 0 ? 'top' : 'bottom';
-      } else {
-        // Celestial Crown / Arc with Center Anchor
-        const angle = (progress - 0.5) * Math.PI * 0.9;
-        relX = Math.sin(angle) * 28;
-        relY = -Math.cos(angle) * 15 + 4;
-        placement = angle < 0 ? 'left' : 'right';
-      }
-
-      // Safe bounds clamping (avoids bottom-left turntable and top edge)
-      const finalX = Math.max(18, Math.min(82, centerX + relX));
-      const finalY = Math.max(22, Math.min(68, centerY + relY));
-
-      stars.push({
-        id: `${line.id}-${i}`,
-        wordIndex: i,
-        text: w.text,
-        start: w.start,
-        end: w.end,
-        x: finalX,
-        y: finalY,
-        labelPlacement: placement,
-        color: themeColor.active,
-        threadColor: themeColor.thread,
-      });
-
-      // Primary backbone constellation line
-      if (i > 0) {
-        edges.push({ fromIndex: i - 1, toIndex: i });
-      }
-    }
-
-    // Add geometric cross-links for realistic polygon constellations (as seen in video frames 00:04 & 00:13)
-    if (N >= 4) {
-      edges.push({ fromIndex: 0, toIndex: Math.min(N - 1, 3) });
-    }
-    if (N >= 6) {
-      edges.push({ fromIndex: 2, toIndex: Math.min(N - 1, 5) });
-    }
-    if (N >= 8) {
-      edges.push({ fromIndex: 3, toIndex: N - 1 });
+    // STRICTLY 1-TO-1 FORWARD CHAIN: Zero loops, zero cross-ties!
+    if (i > 0) {
+      edges.push({ fromIndex: i - 1, toIndex: i });
     }
   }
 
@@ -398,21 +258,21 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
           id: Date.now() + Math.random(),
           xPercent: c.activeStar.x,
           yPercent: c.activeStar.y,
-          color: 'rgba(251, 113, 133, 0.4)',
-          size: 260,
+          color: 'rgba(251, 113, 133, 0.45)',
+          size: 280,
         });
       }
     }
   }, [activeConstellations, onSpawnRipple]);
 
-  // Font size configuration
+  // Font size configuration (Significantly enlarged as requested!)
   const activeFontSizeClass = useMemo(() => {
     switch (fontSize) {
-      case 'small': return 'text-2xl md:text-3xl';
-      case 'large': return 'text-4xl md:text-5xl lg:text-6xl';
-      case 'huge': return 'text-5xl md:text-6xl lg:text-7xl';
+      case 'small': return 'text-3xl sm:text-4xl md:text-5xl';
+      case 'large': return 'text-5xl sm:text-6xl md:text-7xl lg:text-8xl';
+      case 'huge': return 'text-6xl sm:text-7xl md:text-8xl lg:text-9xl';
       case 'medium':
-      default: return 'text-3xl md:text-4xl lg:text-5xl';
+      default: return 'text-4xl sm:text-5xl md:text-6xl lg:text-7xl';
     }
   }, [fontSize]);
 
@@ -480,7 +340,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
         />
       </svg>
 
-      {/* 2. Constellations Layer: Connecting Luminous Astronomical Thread Lines */}
+      {/* 2. Constellations Layer: Connecting Angular Luminous Lines (NO LOOPS!) */}
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none z-10"
         viewBox="0 0 100 100"
@@ -501,10 +361,10 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
                   x2={p2.x}
                   y2={p2.y}
                   stroke={p2.threadColor}
-                  strokeWidth="0.32"
+                  strokeWidth="0.35"
                   strokeLinecap="round"
                   style={{
-                    filter: `drop-shadow(0 0 3px ${p2.threadColor})`,
+                    filter: `drop-shadow(0 0 4px ${p2.threadColor})`,
                   }}
                 />
               );
@@ -513,7 +373,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
         ))}
       </svg>
 
-      {/* 3. Constellation Star Nodes and Lyric Words */}
+      {/* 3. Constellation Star Nodes and Big Bold Lyric Words */}
       <div className="absolute inset-0 z-20 pointer-events-none">
         {activeConstellations.map(({ phrase, opacity, spawnedStars, activeStar }) => (
           <div
@@ -531,32 +391,32 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
                     e.stopPropagation();
                     onSeek(star.start);
                   }}
-                  className="absolute pointer-events-auto cursor-pointer flex items-center gap-1.5 transition-all duration-300"
+                  className="absolute pointer-events-auto cursor-pointer flex items-center gap-2 transition-all duration-300"
                   style={{
                     left: `${star.x}%`,
                     top: `${star.y}%`,
                     transform: 'translate(-50%, -50%)',
                   }}
                 >
-                  {/* Astronomical 4-Point Diamond Star at Vertex (Matches Reference Video) */}
+                  {/* Astronomical 4-Point Diamond Star at Vertex */}
                   <DiamondStar
-                    size={isActive ? 18 : 10}
+                    size={isActive ? 22 : 12}
                     isActive={isActive}
-                    color={isActive ? star.color : 'rgba(255, 255, 255, 0.7)'}
+                    color={isActive ? star.color : 'rgba(255, 255, 255, 0.75)'}
                   />
 
-                  {/* Word Label Positioned at Star Node */}
+                  {/* Word Label (Much Bigger and Bolder!) */}
                   <span
                     style={{
-                      color: isActive ? star.color : 'rgba(255, 255, 255, 0.75)',
+                      color: isActive ? star.color : 'rgba(255, 255, 255, 0.82)',
                       textShadow: isActive
-                        ? `0 0 14px ${star.color}, 0 0 28px ${star.color}`
-                        : '0 0 6px rgba(255, 255, 255, 0.3)',
+                        ? `0 0 16px ${star.color}, 0 0 32px ${star.color}`
+                        : '0 0 6px rgba(255, 255, 255, 0.35)',
                     }}
-                    className={`inline-block font-bold tracking-tight select-none transition-all duration-300 ${
+                    className={`inline-block font-black tracking-tight select-none transition-all duration-300 ${
                       isActive
-                        ? `${activeFontSizeClass} font-extrabold z-30 scale-105`
-                        : 'text-xs sm:text-sm md:text-base font-semibold z-20'
+                        ? `${activeFontSizeClass} font-black z-30 scale-105`
+                        : 'text-sm sm:text-base md:text-lg lg:text-xl font-bold z-20'
                     }`}
                   >
                     {star.text}
