@@ -117,22 +117,45 @@ function parseOrInterpolateWords(
     if (words.length > 0) return words;
   }
 
-  // Fallback: character-weighted time distribution (Verci algorithm)
+  // Fallback: musical flow time distribution (follows vocal phrasing and chorus melismas)
   const parts = cleanText.split(/\s+/).filter(Boolean);
   if (parts.length === 0) return [];
 
-  const totalChars = parts.reduce((sum, p) => sum + p.length + 1, 0);
-  const lineDuration = Math.max(0.6, lineEnd - lineStart);
-  // Estimate singing duration: don't stretch indefinitely if there's a long pause
-  const singDuration = Math.min(lineDuration, totalChars * SECONDS_PER_CHAR + 0.4);
+  const rawSpan = Math.max(0.8, lineEnd - lineStart);
+
+  // If gap between lines is long (> 6.5s), vocal singing takes the natural phrase (3.5-5.5s), rest is instrumental silence
+  const vocalSpan = rawSpan > 6.5
+    ? Math.min(rawSpan - 1.2, Math.max(3.6, rawSpan * 0.6))
+    : Math.max(0.6, rawSpan - 0.2); // natural 0.2s breath before next line
+
+  // Compute musical weights:
+  // Chorus vocalizations ("ooh", "aah", "yeah", "baby", "woah", etc.) are held notes and get extended duration
+  // Short particles ("the", "a", "in", "to") are quick
+  const VOCALIZATION_REGEX = /^(o+h+|a+h+|yea+h*|wo+a*h*|la+|na+|mmm+|ba+by|he+y|ai+ght|ya+y)/i;
+  const PARTICLE_REGEX = /^(a|the|in|on|at|to|of|by|for|is|it|as|if)$/i;
+
+  const weights = parts.map((w) => {
+    const clean = w.replace(/[^a-zA-Z]/g, '').toLowerCase();
+    if (VOCALIZATION_REGEX.test(clean)) {
+      // Sustained chorus melisma: 4.5x weight
+      return Math.max(4.5, clean.length * 1.8);
+    }
+    if (PARTICLE_REGEX.test(clean)) {
+      return 1.2;
+    }
+    // Standard words: proportional to syllable/character length with base floor
+    return Math.max(2.2, clean.length);
+  });
+
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
 
   let cursor = lineStart;
   const words: Word[] = [];
 
   for (let i = 0; i < parts.length; i++) {
     const word = parts[i];
-    const wordRatio = (word.length + 1) / totalChars;
-    const duration = singDuration * wordRatio;
+    const fraction = weights[i] / totalWeight;
+    const duration = vocalSpan * fraction;
 
     words.push({
       text: word,

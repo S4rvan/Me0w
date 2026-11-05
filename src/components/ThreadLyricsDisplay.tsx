@@ -345,11 +345,17 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
         const spawnedStars: ConstellationStar[] = [];
         let activeStar: ConstellationStar | null = null;
 
-        for (const star of phrase.stars) {
+        for (let i = 0; i < phrase.stars.length; i++) {
+          const star = phrase.stars[i];
+          const nextStar = phrase.stars[i + 1];
+
           if (currentTime >= star.start) {
             spawnedStars.push(star);
-            // Current singing star
-            if (currentTime >= star.start && currentTime <= star.end + 0.15) {
+
+            // Stays active and prominent following the vocal flow until the next star begins,
+            // or through the phrase duration if it's the final word
+            const singingUntil = nextStar ? nextStar.start : Math.max(star.end, phrase.end);
+            if (currentTime >= star.start && currentTime <= singingUntil) {
               activeStar = star;
             }
           }
