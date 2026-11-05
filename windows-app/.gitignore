@@ -1,0 +1,10 @@
+bin/
+obj/
+out/
+publish/
+.vs/
+.vscode/
+*.user
+*.suo
+.DS_Store
+.vercel

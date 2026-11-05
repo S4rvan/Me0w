@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyrix: word-by-word lyrics for Windows</title>
+<meta name="description" content="A Windows app that lights lyrics one word at a time, as they’re sung. Works with Spotify and Apple Music.">
+<style>
+  :root { color-scheme: dark; --fg: #fff; --dim: rgba(255,255,255,.4); --bg: #000; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg);
+         font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+         display: flex; flex-direction: column; align-items: center; justify-content: center;
+         padding: 48px 24px; text-align: center; }
+  h1 { font-size: clamp(40px, 8vw, 72px); margin: 0 0 16px; letter-spacing: -.02em; }
+  .lyric { font-size: clamp(22px, 4vw, 34px); font-weight: 700; margin: 0 0 40px; max-width: 18em; }
+  .lyric span { color: var(--dim); }
+  .lyric .on { color: var(--fg); }
+  a.btn { display: inline-block; background: #fff; color: #000; padding: 14px 28px; border-radius: 999px;
+          font-weight: 600; text-decoration: none; }
+  a.btn:hover { opacity: .85; }
+  .alt { margin-top: 16px; font-size: 14px; color: var(--dim); }
+  .alt a { color: var(--dim); }
+  ul { list-style: none; padding: 0; margin: 48px 0 0; color: var(--dim); line-height: 1.9; }
+  footer { margin-top: 48px; font-size: 13px; color: var(--dim); max-width: 34em; }
+</style>
+</head>
+<body>
+  <h1>Lyrix</h1>
+  <p class="lyric"><span class="on">Words light up</span> <span class="on">one</span> <span class="on">at</span> <span>a</span> <span>time</span></p>
+
+  <a class="btn" id="dl" href="#">Download for Windows</a>
+  <p class="alt">Also on the <a id="rel" href="#">releases page</a> · Windows 10 or later</p>
+
+  <ul>
+    <li>Works with Spotify, Apple Music and anything that shows in Windows media controls</li>
+    <li>Runs from the tray, or as a screensaver</li>
+    <li>Lyrics from LRCLIB; word timing is estimated from each line</li>
+  </ul>
+
+  <footer>Not affiliated with Verci. Lyrix can’t draw on the real Windows lock screen, so it runs as a screensaver that appears before the lock.</footer>
+
+<script>
+  // Change this to your GitHub "owner/repo"
+  const REPO = "YOUR_USER/YOUR_REPO";
+  const base = `https://github.com/${REPO}/releases/latest`;
+  document.getElementById("dl").href = `${base}/download/Lyrix.exe`;
+  document.getElementById("rel").href = base;
+</script>
+</body>
+</html>
