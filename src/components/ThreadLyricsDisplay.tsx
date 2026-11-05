@@ -330,16 +330,18 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
       drawnEdges: ConstellationEdge[];
     }[] = [];
 
+    const FADE_OUT_DURATION = 1.2; // Quick, graceful 1.2s decay for completed lyrics
+
     for (const phrase of constellations) {
-      // Phrase is active or within its 2.2s graceful fade-out window
+      // Phrase is active or within its 1.2s graceful fade-out window
       const isOngoing = currentTime >= phrase.start && currentTime <= phrase.end;
-      const isFading = currentTime > phrase.end && currentTime <= phrase.end + 2.2;
+      const isFading = currentTime > phrase.end && currentTime <= phrase.end + FADE_OUT_DURATION;
 
       if (isOngoing || isFading) {
         let opacity = 1.0;
         if (isFading) {
-          // Continuous gentle power fade-out into deep space
-          const fadeProgress = (currentTime - phrase.end) / 2.2;
+          // Continuous gentle power fade-out into deep space over 1.2s
+          const fadeProgress = (currentTime - phrase.end) / FADE_OUT_DURATION;
           opacity = Math.max(0, Math.pow(1 - fadeProgress, 1.5));
         }
 
@@ -523,20 +525,6 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
             style={{ opacity }}
             className="absolute inset-0 transition-opacity duration-300"
           >
-            {/* Elegant Sky Atlas Constellation Subtitle (From User's Star Map) */}
-            <div
-              className="absolute pointer-events-none select-none transition-opacity duration-500"
-              style={{
-                left: `${phrase.centerX}%`,
-                top: `${Math.max(16, phrase.centerY - 24)}%`,
-                transform: 'translate(-50%, -50%)',
-              }}
-            >
-              <span className="text-[10px] md:text-xs font-mono uppercase tracking-[0.35em] text-amber-200/40">
-                ✦ {phrase.constellationName} ✦
-              </span>
-            </div>
-
             {/* Stars and Word Labels */}
             {spawnedStars.map((star) => {
               const isActive = activeStar?.id === star.id;
@@ -584,6 +572,21 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
           </div>
         ))}
       </div>
+
+      {/* 4. Astronomical Constellation Name Badge Positioned at Bottom-Right Corner */}
+      {activeConstellations.length > 0 && (
+        <div
+          className="fixed bottom-20 right-8 z-30 pointer-events-none select-none transition-all duration-500 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 shadow-lg"
+          style={{
+            opacity: activeConstellations[activeConstellations.length - 1].opacity,
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.25em] text-amber-200/60 font-semibold">
+            {activeConstellations[activeConstellations.length - 1].phrase.constellationName}
+          </span>
+        </div>
+      )}
     </div>
   );
 };
