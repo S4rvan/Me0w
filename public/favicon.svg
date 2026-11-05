@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <circle cx="32" cy="32" r="30" fill="#09090b" stroke="#f43f5e" stroke-width="2.5" />
+  <!-- Vinyl Grooves -->
+  <circle cx="32" cy="32" r="23" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1" />
+  <circle cx="32" cy="32" r="17" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1" />
+  <circle cx="32" cy="32" r="11" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1" />
+  <!-- Center Star -->
+  <polygon points="32,22 34.5,29.5 42,32 34.5,34.5 32,42 29.5,34.5 22,32 29.5,29.5" fill="#f43f5e" />
+  <circle cx="32" cy="32" r="2" fill="#ffffff" />
+</svg>

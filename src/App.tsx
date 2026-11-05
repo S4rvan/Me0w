@@ -55,7 +55,7 @@ const DEFAULT_PALETTE: ColorPalette = {
 export const App: React.FC = () => {
   // App Branding Name (persisted)
   const [appName, setAppNameState] = useState<string>(() => {
-    return localStorage.getItem('verci_app_name') || 'Spootify';
+    return localStorage.getItem('verci_app_name') || 'Me0w';
   });
 
   const setAppName = (name: string) => {
