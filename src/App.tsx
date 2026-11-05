@@ -34,6 +34,7 @@ import {
 import { ThreadLyricsDisplay } from './components/ThreadLyricsDisplay';
 import { StringLights } from './components/StringLights';
 import { CornerVinyl } from './components/CornerVinyl';
+import { WaterSurface, RippleEvent } from './components/WaterSurface';
 import { SearchModal } from './components/SearchModal';
 import { SpotifyConnectModal } from './components/SpotifyConnectModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -81,6 +82,14 @@ export const App: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+
+  // Water Ripple & Instrumental States
+  const [ripples, setRipples] = useState<RippleEvent[]>([]);
+  const [isInstrumental, setIsInstrumental] = useState(true);
+
+  const handleSpawnRipple = useCallback((ripple: RippleEvent) => {
+    setRipples((prev) => [...prev.slice(-8), ripple]);
+  }, []);
 
   // Spotify integration
   const [spotifyToken, setSpotifyToken] = useState<string | null>(getStoredSpotifyToken());
@@ -385,7 +394,7 @@ export const App: React.FC = () => {
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Auto-hide controls on mouse idle for pure black screen immersion
+  // Auto-hide top controls on mouse idle for pure black screen immersion
   const handleMouseMove = () => {
     setControlsVisible(true);
     if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
@@ -443,6 +452,12 @@ export const App: React.FC = () => {
       {/* Hidden Audio Element */}
       <audio ref={audioRef} preload="auto" />
 
+      {/* Interactive Water Surface: Ripples on Lyrics Spawn, Mouse Trail & Rain Drops */}
+      <WaterSurface
+        externalRipples={ripples}
+        isInstrumental={isInstrumental}
+      />
+
       {/* Gentle, Cozy String Lights (Fairy Lights) Along Top */}
       {stringLightsEnabled && (
         <StringLights
@@ -460,8 +475,8 @@ export const App: React.FC = () => {
         {/* Brand */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.07] backdrop-blur-md border border-white/10 shadow-lg">
-            <Disc3 className={`w-4 h-4 text-white ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
-            <span className="font-bold tracking-widest text-xs uppercase text-white/90">{appName}</span>
+            <Disc3 className={`w-4 h-4 text-pink-300 ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+            <span className="font-bold tracking-widest text-xs uppercase text-pink-200/90">{appName}</span>
           </div>
         </div>
 
@@ -539,7 +554,7 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Vision Viewport: Black Screen + Water Ripples + Organic Scattered Words on Luminous Thread */}
+      {/* Main Vision Viewport: Black Water Surface + TV Girl Pastel Words on Silk Thread */}
       <main className="relative flex-1 w-full h-full z-10 overflow-hidden bg-black">
         <ThreadLyricsDisplay
           lines={lyrics}
@@ -551,25 +566,22 @@ export const App: React.FC = () => {
           trackTitle={currentTrack?.title}
           trackArtist={currentTrack?.artist}
           onOpenSearch={() => setIsSearchOpen(true)}
+          onSpawnRipple={handleSpawnRipple}
+          isInstrumental={isInstrumental}
+          setIsInstrumental={setIsInstrumental}
         />
       </main>
 
-      {/* Corner Spinning Vinyl Record in Bottom-Left (Replaces boring progress bar) */}
-      <div
-        className={`transition-all duration-500 ${
-          controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'
-        }`}
-      >
-        <CornerVinyl
-          currentTrack={currentTrack}
-          isPlaying={isPlaying}
-          currentTime={currentTime}
-          duration={duration}
-          onTogglePlay={togglePlay}
-          onSeek={handleSeek}
-          isSpotifyActive={isSpotifyActive}
-        />
-      </div>
+      {/* Corner Spinning Vinyl Record in Bottom-Left (ALWAYS VISIBLE & SPINNING) */}
+      <CornerVinyl
+        currentTrack={currentTrack}
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        duration={duration}
+        onTogglePlay={togglePlay}
+        onSeek={handleSeek}
+        isSpotifyActive={isSpotifyActive}
+      />
 
       {/* Bottom-Right Minimalist Sync Nudge & Volume Bar */}
       <div
@@ -578,11 +590,11 @@ export const App: React.FC = () => {
         }`}
       >
         {/* Sync Nudge Pill */}
-        <div className="flex items-center gap-1 bg-black/60 backdrop-blur-xl border border-white/10 px-2.5 py-1.5 rounded-2xl text-xs">
+        <div className="flex items-center gap-1 bg-black/70 backdrop-blur-xl border border-white/10 px-2.5 py-1.5 rounded-2xl text-xs">
           <span className="text-white/40 text-[10px] mr-1 uppercase tracking-wider font-semibold">Sync:</span>
           <button
             onClick={() => setSyncOffset((prev) => prev - 0.1)}
-            className="px-1.5 py-0.5 rounded hover:bg-white/15 text-white/70 active:scale-95 font-mono"
+            className="px-1.5 py-0.5 rounded hover:bg-white/15 text-pink-200/80 active:scale-95 font-mono"
             title="Lyrics later (-0.1s)"
           >
             -0.1s
@@ -592,7 +604,7 @@ export const App: React.FC = () => {
           </span>
           <button
             onClick={() => setSyncOffset((prev) => prev + 0.1)}
-            className="px-1.5 py-0.5 rounded hover:bg-white/15 text-white/70 active:scale-95 font-mono"
+            className="px-1.5 py-0.5 rounded hover:bg-white/15 text-pink-200/80 active:scale-95 font-mono"
             title="Lyrics earlier (+0.1s)"
           >
             +0.1s
@@ -609,7 +621,7 @@ export const App: React.FC = () => {
         </div>
 
         {/* Volume Slider */}
-        <div className="hidden sm:flex items-center gap-2 bg-black/60 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-2xl">
+        <div className="hidden sm:flex items-center gap-2 bg-black/70 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-2xl">
           <button
             onClick={() => setVolume((v) => (v === 0 ? 0.8 : 0))}
             className="text-white/70 hover:text-white transition"
@@ -623,7 +635,7 @@ export const App: React.FC = () => {
             step="0.01"
             value={volume}
             onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="w-14 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-white"
+            className="w-14 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-pink-300"
           />
         </div>
       </div>

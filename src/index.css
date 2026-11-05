@@ -23,7 +23,7 @@
   }
 
   ::selection {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(244, 114, 182, 0.25);
     color: #ffffff;
   }
 }
@@ -64,7 +64,7 @@
 @keyframes wordArrive {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.92);
+    transform: translateY(12px) scale(0.88);
   }
   to {
     opacity: 1;
@@ -73,7 +73,37 @@
 }
 
 .animate-word-arrive {
-  animation: wordArrive 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: wordArrive 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Gentle Floating Drift on Water */
+@keyframes floatingDrift {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(0.6deg);
+  }
+  100% {
+    transform: translateY(3px) rotate(-0.6deg);
+  }
+}
+
+/* Delicate Thread Draw Animation */
+@keyframes threadAppear {
+  from {
+    opacity: 0;
+    stroke-dasharray: 20;
+    stroke-dashoffset: 20;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-thread-appear {
+  animation: threadAppear 0.5s ease-out forwards;
 }
 
 /* Spinning Vinyl Record */
@@ -101,9 +131,9 @@
 
 /* Active Word Broken Ring Pulse */
 @keyframes brokenRingPulse {
-  0% { transform: scale(0.96); opacity: 0.12; }
-  50% { transform: scale(1.08); opacity: 0.24; }
-  100% { transform: scale(0.96); opacity: 0.12; }
+  0% { transform: scale(0.94); opacity: 0.12; }
+  50% { transform: scale(1.08); opacity: 0.28; }
+  100% { transform: scale(0.94); opacity: 0.12; }
 }
 .animate-broken-ring-pulse {
   animation: brokenRingPulse 2.8s ease-in-out infinite;
@@ -117,7 +147,7 @@
   100% { opacity: 0; transform: scale(2.2); }
 }
 .animate-drop-impact {
-  animation: dropImpact 0.8s ease-out forwards;
+  animation: dropImpact 0.7s ease-out forwards;
 }
 
 .water-ripple {
@@ -128,29 +158,26 @@
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.25);
   pointer-events: none;
-  animation: rippleExpand 3.2s cubic-bezier(0.1, 0.45, 0.3, 1) infinite;
+  animation: rippleExpand 2.8s cubic-bezier(0.1, 0.45, 0.3, 1) infinite;
 }
 
 .ripple-1 { width: 12px; height: 12px; animation-delay: 0s; }
-.ripple-2 { width: 12px; height: 12px; animation-delay: 0.7s; }
-.ripple-3 { width: 12px; height: 12px; animation-delay: 1.4s; }
+.ripple-2 { width: 12px; height: 12px; animation-delay: 0.55s; }
+.ripple-3 { width: 12px; height: 12px; animation-delay: 1.1s; }
 
 @keyframes rippleExpand {
   0% {
     width: 0px;
     height: 0px;
-    opacity: 0.6;
-    border-color: rgba(255, 255, 255, 0.35);
+    opacity: 0.65;
   }
-  60% {
-    opacity: 0.22;
-    border-color: rgba(255, 255, 255, 0.15);
+  50% {
+    opacity: 0.28;
   }
   100% {
-    width: 240px;
-    height: 240px;
+    width: 260px;
+    height: 260px;
     opacity: 0;
-    border-color: rgba(255, 255, 255, 0);
   }
 }
 
