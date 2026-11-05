@@ -33,6 +33,7 @@ import {
 
 import { ThreadLyricsDisplay } from './components/ThreadLyricsDisplay';
 import { StringLights } from './components/StringLights';
+import { EdgeLights } from './components/EdgeLights';
 import { RetroTurntable } from './components/RetroTurntable';
 import { WaterSurface, RippleEvent } from './components/WaterSurface';
 import { SearchModal } from './components/SearchModal';
@@ -43,9 +44,9 @@ import { ShareModal } from './components/ShareModal';
 import { LockscreenClock } from './components/LockscreenClock';
 
 const DEFAULT_PALETTE: ColorPalette = {
-  primary: '#ffe0a3',
-  secondary: '#d4af37',
-  accent: '#ffffff',
+  primary: '#f43f5e',
+  secondary: '#fb7185',
+  accent: '#fb923c',
   background: '#000000',
 };
 
@@ -77,7 +78,7 @@ export const App: React.FC = () => {
   const [palette, setPalette] = useState<ColorPalette>(DEFAULT_PALETTE);
   const [stringLightsEnabled, setStringLightsEnabled] = useState(true);
   const [stringLightsIntensity, setStringLightsIntensity] = useState(0.7);
-  const [edgeLightMode, setEdgeLightMode] = useState<EdgeLightMode>('off');
+  const [edgeLightMode, setEdgeLightMode] = useState<EdgeLightMode>('neon');
   const [showClock, setShowClock] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [wakeLockActive, setWakeLockActive] = useState(false);
@@ -466,6 +467,14 @@ export const App: React.FC = () => {
       <WaterSurface
         externalRipples={ripples}
         isInstrumental={isInstrumental}
+      />
+
+      {/* Screen Border Edge Lights (Ambilight glow matching the reference video) */}
+      <EdgeLights
+        mode={edgeLightMode}
+        palette={palette}
+        isPlaying={isPlaying}
+        intensity={0.8}
       />
 
       {/* Gentle, Cozy String Lights (Fairy Lights) Along Top */}
