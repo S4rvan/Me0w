@@ -25,7 +25,7 @@ interface TVGirlColor {
   glow: string;
 }
 
-// Iconic TV Girl aesthetic palette: bright but soft & soothing pastels
+// Iconic TV Girl aesthetic palette: bright but soft & soothing pastels (easy on the eyes)
 const TV_GIRL_PALETTE: TVGirlColor[] = [
   {
     name: 'Blush Pink',
@@ -83,38 +83,33 @@ interface FlattenedWord {
   floatDelay: number;
 }
 
-const QUEUE_CAP = 8; // 8 spacious words in queue with plenty of room
-const IDLE_FADE_DELAY = 1.4; // Fade words after 1.4s of silence
+// 4 Seconds Total Lifespan with Smooth Fade Decay
+const WORD_LIFESPAN = 4.0;   // Word lives for 4.0s
+const WORD_HOLD_TIME = 2.4;  // Fully bright for 2.4s
+const WORD_FADE_TIME = 1.6;  // Decays smoothly over 1.6s
 
-// 12 Spacious Non-Overlapping Spatial Anchor Regions
-const SPATIOUS_ANCHORS: { x: number; y: number }[] = [
-  { x: 22, y: 32 }, // 0: Top-Left
-  { x: 50, y: 25 }, // 1: Top-Center
-  { x: 78, y: 32 }, // 2: Top-Right
-  { x: 30, y: 48 }, // 3: Mid-Left
-  { x: 70, y: 46 }, // 4: Mid-Right
-  { x: 24, y: 66 }, // 5: Bottom-Left
-  { x: 52, y: 68 }, // 6: Bottom-Center
-  { x: 78, y: 64 }, // 7: Bottom-Right
-  { x: 38, y: 36 }, // 8: Center-Upper-Left
-  { x: 64, y: 56 }, // 9: Center-Lower-Right
-  { x: 36, y: 60 }, // 10: Center-Lower-Left
-  { x: 62, y: 32 }, // 11: Center-Upper-Right
+// 8 Far-Apart Spatial Anchor Zones (Guarantees zero clumping, separated by 30-70% screen distance)
+const SPATIOUS_ZONES: { x: number; y: number }[] = [
+  { x: 22, y: 28 }, // 0: Top-Left
+  { x: 78, y: 70 }, // 1: Bottom-Right
+  { x: 76, y: 28 }, // 2: Top-Right
+  { x: 24, y: 70 }, // 3: Bottom-Left
+  { x: 28, y: 48 }, // 4: Mid-Left
+  { x: 72, y: 48 }, // 5: Mid-Right
+  { x: 50, y: 22 }, // 6: Center-Top
+  { x: 50, y: 74 }, // 7: Center-Bottom
 ];
 
-// Spatially separated leap coordinate generator: guarantees words are spaced far apart
-function getSpaciousWordCoordinates(index: number): { x: number; y: number } {
-  // Use prime leap multiplier 7 to ensure consecutive words jump across opposite quadrants
-  const anchorIdx = (index * 7) % SPATIOUS_ANCHORS.length;
-  const base = SPATIOUS_ANCHORS[anchorIdx];
-
-  // Subtle organic float offset (±2%) so it never feels robotic
-  const jitterX = ((index * 11) % 5) - 2;
-  const jitterY = ((index * 13) % 5) - 2;
+function getSpaciousCoordinates(index: number): { x: number; y: number } {
+  // Alternate across polar opposite zones
+  const zone = SPATIOUS_ZONES[index % SPATIOUS_ZONES.length];
+  // Tiny organic drift (±2%) so it feels natural
+  const jitterX = ((index * 7) % 5) - 2;
+  const jitterY = ((index * 11) % 5) - 2;
 
   return {
-    x: Math.max(18, Math.min(82, base.x + jitterX)),
-    y: Math.max(22, Math.min(74, base.y + jitterY)),
+    x: Math.max(16, Math.min(84, zone.x + jitterX)),
+    y: Math.max(20, Math.min(76, zone.y + jitterY)),
   };
 }
 
@@ -132,9 +127,9 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
   isInstrumental,
   setIsInstrumental,
 }) => {
-  const lastSpawnedWordId = useRef<number>(-1);
+  const spawnedRipplesRef = useRef<Set<number>>(new Set());
 
-  // 1. Flatten all words with TV Girl pastel colors & spacious non-overlapping positions
+  // 1. Flatten all words with pre-computed spacious positions & TV Girl colors
   const allWords = useMemo<FlattenedWord[]>(() => {
     const list: FlattenedWord[] = [];
     let counter = 0;
@@ -143,7 +138,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
       if (!line.words || line.words.length === 0) continue;
       for (const w of line.words) {
         if (!w.text.trim()) continue;
-        const pos = getSpaciousWordCoordinates(counter);
+        const pos = getSpaciousCoordinates(counter);
         const color = TV_GIRL_PALETTE[counter % TV_GIRL_PALETTE.length];
 
         list.push({
@@ -155,7 +150,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
           x: pos.x,
           y: pos.y,
           color,
-          floatDelay: (counter * 0.4) % 3,
+          floatDelay: (counter * 0.5) % 3,
         });
         counter++;
       }
@@ -163,99 +158,113 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
     return list;
   }, [lines]);
 
-  // 2. Find current active word index
-  const currentWordIndex = useMemo(() => {
-    if (allWords.length === 0) return -1;
-    if (currentTime < allWords[0].start - 0.1) return -1;
+  // Reset ripple tracking if track changes
+  useEffect(() => {
+    spawnedRipplesRef.current.clear();
+  }, [lines]);
 
-    for (let i = allWords.length - 1; i >= 0; i--) {
-      if (currentTime >= allWords[i].start - 0.08) {
-        return i;
+  // 2. Compute alive words using the 4-second lifecycle with continuous decay
+  const { aliveWords, instrumentalNow, activeWord } = useMemo(() => {
+    if (allWords.length === 0) {
+      return { aliveWords: [], instrumentalNow: true, activeWord: null };
+    }
+
+    const alive: { word: FlattenedWord; opacity: number; scale: number; isCurrent: boolean }[] = [];
+    let current: FlattenedWord | null = null;
+
+    for (const word of allWords) {
+      const age = currentTime - word.start;
+
+      // Word has started and has not exceeded 4 seconds lifespan
+      if (age >= 0 && age <= WORD_LIFESPAN) {
+        let opacity = 1.0;
+        let scale = 1.0;
+        const isCurrent = currentTime >= word.start && currentTime <= word.end;
+
+        if (isCurrent) {
+          current = word;
+          scale = 1.08;
+        }
+
+        // Entrance fade-in (first 0.35s)
+        if (age < 0.35) {
+          opacity = Math.max(0.1, age / 0.35);
+          scale = 0.9 + 0.1 * (age / 0.35);
+        }
+        // Decay phase (from 2.4s to 4.0s)
+        else if (age >= WORD_HOLD_TIME) {
+          const decayProgress = Math.min(1, (age - WORD_HOLD_TIME) / WORD_FADE_TIME);
+          // Smooth sinusoidal fade-out
+          opacity = Math.max(0, 1 - Math.sin(decayProgress * (Math.PI / 2)));
+          scale = 1.0 - 0.08 * decayProgress;
+        }
+
+        if (opacity > 0.01) {
+          alive.push({ word, opacity, scale, isCurrent });
+        }
       }
     }
-    return -1;
+
+    return {
+      aliveWords: alive,
+      instrumentalNow: alive.length === 0,
+      activeWord: current,
+    };
   }, [allWords, currentTime]);
-
-  // 3. Instrumental break & silence detection
-  const { instrumentalNow, idleFadeRatio } = useMemo(() => {
-    if (currentWordIndex === -1) {
-      return { instrumentalNow: true, idleFadeRatio: 0 };
-    }
-    const currentWord = allWords[currentWordIndex];
-    const timeSinceEnd = currentTime - currentWord.end;
-
-    const nextWord = allWords[currentWordIndex + 1];
-    const isWaitingForNext = nextWord ? currentTime < nextWord.start : true;
-
-    if (timeSinceEnd > IDLE_FADE_DELAY && isWaitingForNext) {
-      const fadeProgress = Math.min(1, (timeSinceEnd - IDLE_FADE_DELAY) / 1.3);
-      return {
-        instrumentalNow: fadeProgress >= 1,
-        idleFadeRatio: 1 - fadeProgress,
-      };
-    }
-
-    return { instrumentalNow: false, idleFadeRatio: 1 };
-  }, [allWords, currentWordIndex, currentTime]);
 
   // Update parent instrumental state for ambient water droplets
   useEffect(() => {
     setIsInstrumental(instrumentalNow);
   }, [instrumentalNow, setIsInstrumental]);
 
-  // 4. Compute active queue of 7-8 spacious words
-  const queueWords = useMemo(() => {
-    if (currentWordIndex === -1 || instrumentalNow) return [];
-
-    const startIndex = Math.max(0, currentWordIndex - QUEUE_CAP + 1);
-    const endIndex = currentWordIndex;
-    return allWords.slice(startIndex, endIndex + 1);
-  }, [allWords, currentWordIndex, instrumentalNow]);
-
-  // 5. Spawn water ripple whenever a new word arrives on screen!
+  // 3. Spawn water ripples on word birth
   useEffect(() => {
-    if (currentWordIndex !== -1 && currentWordIndex !== lastSpawnedWordId.current) {
-      lastSpawnedWordId.current = currentWordIndex;
-      const word = allWords[currentWordIndex];
-      if (word) {
+    for (const item of aliveWords) {
+      if (!spawnedRipplesRef.current.has(item.word.id)) {
+        spawnedRipplesRef.current.add(item.word.id);
         onSpawnRipple({
           id: Date.now() + Math.random(),
-          xPercent: word.x,
-          yPercent: word.y,
-          color: word.color.ripple,
-          size: 220,
+          xPercent: item.word.x,
+          yPercent: item.word.y,
+          color: item.word.color.ripple,
+          size: 240,
         });
       }
     }
-  }, [currentWordIndex, allWords, onSpawnRipple]);
+  }, [aliveWords, onSpawnRipple]);
 
-  // 6. Connect words with thin, delicate, pale colored threads
+  // 4. Smooth connecting threads between alive words with synchronized opacity decay
   const threadSegments = useMemo(() => {
-    if (queueWords.length <= 1) return [];
+    if (aliveWords.length <= 1) return [];
 
-    const segments: { path: string; color: string }[] = [];
-    for (let i = 0; i < queueWords.length - 1; i++) {
-      const p1 = queueWords[i];
-      const p2 = queueWords[i + 1];
+    const segments: { path: string; color: string; opacity: number }[] = [];
+    for (let i = 0; i < aliveWords.length - 1; i++) {
+      const p1 = aliveWords[i];
+      const p2 = aliveWords[i + 1];
 
-      // Smooth flowing cubic bezier curve
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const midX = (p1.x + p2.x) / 2;
-      const midY = (p1.y + p2.y) / 2;
+      // Thread opacity matches the decaying words
+      const segmentOpacity = Math.min(p1.opacity, p2.opacity) * 0.55;
+      if (segmentOpacity <= 0.02) continue;
 
-      const ctrlX = midX - dy * 0.14;
-      const ctrlY = midY + dx * 0.14;
+      const dx = p2.word.x - p1.word.x;
+      const dy = p2.word.y - p1.word.y;
+      const midX = (p1.word.x + p2.word.x) / 2;
+      const midY = (p1.word.y + p2.word.y) / 2;
+
+      // Gentle organic curve
+      const ctrlX = midX - dy * 0.12;
+      const ctrlY = midY + dx * 0.12;
 
       segments.push({
-        path: `M ${p1.x},${p1.y} Q ${ctrlX},${ctrlY} ${p2.x},${p2.y}`,
-        color: p2.color.thread,
+        path: `M ${p1.word.x},${p1.word.y} Q ${ctrlX},${ctrlY} ${p2.word.x},${p2.word.y}`,
+        color: p2.word.color.thread,
+        opacity: segmentOpacity,
       });
     }
     return segments;
-  }, [queueWords]);
+  }, [aliveWords]);
 
-  // Font size multiplier (Spacious and large)
+  // Font size multiplier (Bigger and clearer)
   const fontSizeClass = useMemo(() => {
     switch (fontSize) {
       case 'small': return 'text-2xl md:text-3xl';
@@ -278,7 +287,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
     );
   }
 
-  // No lyrics or track not selected
+  // No lyrics
   if (!hasLyrics || allWords.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center px-6 select-none bg-black">
@@ -299,8 +308,6 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
       </div>
     );
   }
-
-  const activeWord = currentWordIndex !== -1 ? allWords[currentWordIndex] : null;
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden select-none">
@@ -332,12 +339,11 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
         />
       </svg>
 
-      {/* 2. Delicate, Thin, Pale-Colored Threads */}
+      {/* 2. Thin, Delicate Luminous Threads with Synchronized Opacity Decay */}
       <svg
-        className="absolute inset-0 w-full h-full pointer-events-none z-10 transition-opacity duration-700"
+        className="absolute inset-0 w-full h-full pointer-events-none z-10"
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
-        style={{ opacity: idleFadeRatio }}
       >
         {threadSegments.map((seg, idx) => (
           <path
@@ -345,21 +351,22 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
             d={seg.path}
             fill="none"
             stroke={seg.color}
-            strokeWidth="0.28" // Very thin and delicate
+            strokeWidth="0.28" // Very thin and wispy
             strokeLinecap="round"
-            className="animate-thread-appear"
             style={{
+              opacity: seg.opacity,
+              transition: 'opacity 0.2s linear',
               filter: `drop-shadow(0 0 2px ${seg.color})`,
             }}
           />
         ))}
 
-        {/* Ultra-transparent broken circle around the active singing word */}
+        {/* Broken pulsing ring around active singing word */}
         {activeWord && (
           <circle
             cx={activeWord.x}
             cy={activeWord.y}
-            r="6"
+            r="6.5"
             fill="none"
             stroke={activeWord.color.thread}
             strokeWidth="0.22"
@@ -369,26 +376,12 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
         )}
       </svg>
 
-      {/* 3. Spacious Floating Words Queue with TV Girl Pastel Aesthetics */}
-      <div
-        className="absolute inset-0 z-20 pointer-events-none transition-opacity duration-700"
-        style={{ opacity: idleFadeRatio }}
-      >
-        {queueWords.map((word, qIdx) => {
-          const isCurrent = word.id === activeWord?.id;
-          const isEntering = qIdx === queueWords.length - 1;
-          const isOldest = qIdx === 0 && queueWords.length >= QUEUE_CAP;
-
-          // Word styling: TV Girl bright-but-pale soothing pastels
-          let wordOpacity = 0.85;
-          let glowStyle = `0 0 14px ${word.color.glow}`;
-
-          if (isCurrent) {
-            wordOpacity = 1;
-            glowStyle = `0 0 24px ${word.color.glow}, 0 0 40px ${word.color.glow}`;
-          } else if (isOldest) {
-            wordOpacity = 0.28;
-          }
+      {/* 3. Spacious Alive Words with Smooth 4-Second Lifecycle Decay */}
+      <div className="absolute inset-0 z-20 pointer-events-none">
+        {aliveWords.map(({ word, opacity, scale, isCurrent }) => {
+          const glowStyle = isCurrent
+            ? `0 0 24px ${word.color.glow}, 0 0 40px ${word.color.glow}`
+            : `0 0 14px ${word.color.glow}`;
 
           return (
             <div
@@ -406,16 +399,14 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
               <span
                 style={{
                   color: word.color.text,
-                  opacity: wordOpacity,
+                  opacity,
                   textShadow: glowStyle,
-                  transition: 'opacity 0.4s ease, transform 0.4s ease, color 0.4s ease',
-                  transform: isCurrent ? 'scale(1.1)' : isOldest ? 'scale(0.9)' : 'scale(1)',
+                  transform: `scale(${scale})`,
+                  transition: 'opacity 0.25s linear, transform 0.25s ease',
                   animation: `floatingDrift 6s ease-in-out infinite alternate`,
                   animationDelay: `${word.floatDelay}s`,
                 }}
-                className={`inline-block font-extrabold tracking-tight select-none ${fontSizeClass} ${
-                  isEntering ? 'animate-word-arrive' : ''
-                }`}
+                className={`inline-block font-extrabold tracking-tight select-none ${fontSizeClass}`}
               >
                 {word.text}
               </span>
