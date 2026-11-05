@@ -11,7 +11,14 @@ import {
   Disc3,
 } from 'lucide-react';
 
-import { Track, LyricLine, VisualTheme, FontSizeSetting, ColorPalette } from './types';
+import {
+  Track,
+  LyricLine,
+  VisualTheme,
+  FontSizeSetting,
+  ColorPalette,
+  EdgeLightMode,
+} from './types';
 import { parseLRC } from './utils/lyricsParser';
 import { extractPaletteFromImage } from './utils/colorExtractor';
 import { requestWakeLock, releaseWakeLock } from './utils/wakeLock';
@@ -25,6 +32,7 @@ import {
 
 import { LyricsDisplay } from './components/LyricsDisplay';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
+import { EdgeLights } from './components/EdgeLights';
 import { SearchModal } from './components/SearchModal';
 import { SpotifyConnectModal } from './components/SpotifyConnectModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -33,27 +41,40 @@ import { ShareModal } from './components/ShareModal';
 import { LockscreenClock } from './components/LockscreenClock';
 
 const DEFAULT_PALETTE: ColorPalette = {
-  primary: '#e11d48',
-  secondary: '#7c3aed',
-  accent: '#f43f5e',
+  primary: '#1db954',
+  secondary: '#8b5cf6',
+  accent: '#06b6d4',
   background: '#09090b',
 };
 
 export const App: React.FC = () => {
+  // App Branding Name (persisted)
+  const [appName, setAppNameState] = useState<string>(() => {
+    return localStorage.getItem('verci_app_name') || 'Spootify';
+  });
+
+  const setAppName = (name: string) => {
+    setAppNameState(name);
+    localStorage.setItem('verci_app_name', name);
+    document.title = `${name} — Synchronized Lyrics`;
+  };
+
   // Track and playback state
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(180);
   const [volume, setVolume] = useState(0.85);
   const [syncOffset, setSyncOffset] = useState(0);
 
-  // Appearance and customization
+  // Appearance and Edge Lights
   const [theme, setTheme] = useState<VisualTheme>('aurora');
   const [fontSize, setFontSize] = useState<FontSizeSetting>('medium');
   const [palette, setPalette] = useState<ColorPalette>(DEFAULT_PALETTE);
+  const [edgeLightMode, setEdgeLightMode] = useState<EdgeLightMode>('ambilight');
+  const [edgeIntensity, setEdgeIntensity] = useState(0.85);
   const [showClock, setShowClock] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [wakeLockActive, setWakeLockActive] = useState(false);
@@ -71,14 +92,17 @@ export const App: React.FC = () => {
   const [isWindowsAppOpen, setIsWindowsAppOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
-  // Audio element reference for local/preview playback
+  // Audio element reference & high-precision frame loop
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const idleTimeoutRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(performance.now());
+  const rafIdRef = useRef<number | null>(null);
   const spotifyPollIntervalRef = useRef<number | null>(null);
 
-  // Handle URL parameters or default demo track on initial load
+  // Initial setup: check Spotify OAuth or URL search params
   useEffect(() => {
-    // Check Spotify OAuth callback
+    document.title = `${appName} — Synchronized Lyrics`;
+
     handleSpotifyCallback().then((authenticated) => {
       if (authenticated) {
         const token = getStoredSpotifyToken();
@@ -92,18 +116,17 @@ export const App: React.FC = () => {
     if (query) {
       searchTracks(query).then((results) => {
         if (results.length > 0) {
-          selectTrack(results[0]);
+          selectTrack(results[0], false);
         } else {
-          selectTrack(DEMO_TRACKS[0]);
+          selectTrack(DEMO_TRACKS[0], false);
         }
       });
     } else {
-      // Default to iconic Starboy track
-      selectTrack(DEMO_TRACKS[0]);
+      selectTrack(DEMO_TRACKS[0], false);
     }
   }, []);
 
-  // Update palette whenever current track artwork changes
+  // Extract color palette whenever album art changes
   useEffect(() => {
     if (currentTrack?.artworkUrl) {
       extractPaletteFromImage(currentTrack.artworkUrl).then((p) => {
@@ -112,7 +135,7 @@ export const App: React.FC = () => {
     }
   }, [currentTrack?.artworkUrl]);
 
-  // Load lyrics whenever current track changes
+  // Load lyrics whenever current track title or artist changes
   useEffect(() => {
     if (!currentTrack) return;
 
@@ -131,7 +154,7 @@ export const App: React.FC = () => {
         }
       })
       .catch((err) => {
-        console.error('Failed to load lyrics:', err);
+        console.warn('Lyrics fetch error:', err);
         setLyrics([]);
       })
       .finally(() => {
@@ -139,17 +162,43 @@ export const App: React.FC = () => {
       });
   }, [currentTrack?.title, currentTrack?.artist]);
 
-  // Audio element event listeners
+  // 60 FPS Buttery-Smooth Animation Loop
+  useEffect(() => {
+    lastFrameTimeRef.current = performance.now();
+
+    const loop = (now: number) => {
+      const delta = (now - lastFrameTimeRef.current) / 1000;
+      lastFrameTimeRef.current = now;
+
+      if (isPlaying) {
+        const audio = audioRef.current;
+        // If real audio is playing, calibrate with audio.currentTime
+        if (audio && !audio.paused && !isSpotifyActive) {
+          setCurrentTime(audio.currentTime);
+        } else {
+          // Virtual timer or Spotify interpolation
+          setCurrentTime((prev) => prev + delta);
+        }
+      }
+
+      rafIdRef.current = requestAnimationFrame(loop);
+    };
+
+    rafIdRef.current = requestAnimationFrame(loop);
+    return () => {
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, [isPlaying, isSpotifyActive]);
+
+  // Audio element events
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const onTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
     const onDurationChange = () => {
-      setDuration(audio.duration || 0);
+      if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration);
+      }
     };
 
     const onPlay = () => {
@@ -164,22 +213,21 @@ export const App: React.FC = () => {
 
     const onEnded = () => {
       setIsPlaying(false);
+      setCurrentTime(0);
     };
 
-    audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('durationchange', onDurationChange);
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
 
     return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('durationchange', onDurationChange);
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
     };
-  }, []);
+  }, [isFullscreen]);
 
   // Sync volume with audio element
   useEffect(() => {
@@ -188,7 +236,7 @@ export const App: React.FC = () => {
     }
   }, [volume]);
 
-  // Spotify polling loop
+  // Spotify Polling Loop with Smooth Reconcile
   useEffect(() => {
     if (!spotifyToken) {
       setIsSpotifyActive(false);
@@ -200,8 +248,19 @@ export const App: React.FC = () => {
       if (state) {
         setIsSpotifyActive(true);
         setIsPlaying(state.isPlaying);
-        setCurrentTime(state.progressMs / 1000);
-        setDuration(state.durationMs / 1000);
+        const serverTime = state.progressMs / 1000;
+
+        // Reconcile time if drifting by more than 0.8s
+        setCurrentTime((prev) => {
+          if (Math.abs(prev - serverTime) > 0.8) {
+            return serverTime;
+          }
+          return prev;
+        });
+
+        if (state.durationMs > 0) {
+          setDuration(state.durationMs / 1000);
+        }
 
         if (state.trackId !== lastSpotifyTrackId.current) {
           lastSpotifyTrackId.current = state.trackId;
@@ -229,17 +288,21 @@ export const App: React.FC = () => {
   }, [spotifyToken]);
 
   // Select a new track
-  const selectTrack = (track: Track) => {
+  const selectTrack = (track: Track, autoPlay = true) => {
     setCurrentTrack(track);
     setCurrentTime(0);
     setSyncOffset(0);
+    setDuration(track.duration || 180);
 
     if (audioRef.current && track.previewUrl) {
       audioRef.current.src = track.previewUrl;
       audioRef.current.load();
-      audioRef.current.play().catch(() => {
-        // Autoplay may be restricted until user interacts
-      });
+      if (autoPlay) {
+        audioRef.current.play().catch(() => {
+          // Autoplay policy: user must click play
+          setIsPlaying(false);
+        });
+      }
     }
   };
 
@@ -256,40 +319,56 @@ export const App: React.FC = () => {
       title,
       artist,
       album: 'Local File',
-      duration: 180,
+      duration: 200,
       artworkUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
       previewUrl: objectUrl,
       source: 'local',
       rawLrc: lrcContent,
     };
 
-    selectTrack(customTrack);
+    selectTrack(customTrack, true);
   };
 
-  // Play / Pause toggle
+  // Play / Pause toggle with virtual timer fallback
   const togglePlay = () => {
     if (isSpotifyActive) {
-      alert('Spotify Connect mode is active! Control playback from your Spotify app.');
+      alert('Spotify is connected! Control playback directly in your Spotify app, or pause it there.');
       return;
     }
 
-    if (audioRef.current) {
+    const audio = audioRef.current;
+    if (audio && currentTrack?.previewUrl) {
       if (isPlaying) {
-        audioRef.current.pause();
+        audio.pause();
+        setIsPlaying(false);
       } else {
-        audioRef.current.play();
+        audio.play().then(() => {
+          setIsPlaying(true);
+        }).catch(() => {
+          // Fallback to virtual timer
+          setIsPlaying(true);
+        });
       }
+    } else {
+      // Virtual timer mode
+      setIsPlaying((p) => !p);
     }
   };
 
   // Seek playback
   const handleSeek = (time: number) => {
-    if (audioRef.current && !isSpotifyActive) {
+    setCurrentTime(time);
+    if (audioRef.current && !isSpotifyActive && currentTrack?.previewUrl) {
       audioRef.current.currentTime = time;
-      setCurrentTime(time);
-    } else {
-      setCurrentTime(time);
     }
+  };
+
+  // Cycle edge lights mode
+  const cycleEdgeLight = () => {
+    const modes: EdgeLightMode[] = ['ambilight', 'neon', 'pulse', 'subtle', 'off'];
+    const idx = modes.indexOf(edgeLightMode);
+    const next = modes[(idx + 1) % modes.length];
+    setEdgeLightMode(next);
   };
 
   // Fullscreen toggle
@@ -344,6 +423,9 @@ export const App: React.FC = () => {
       } else if (e.code === 'KeyS') {
         e.preventDefault();
         setIsSearchOpen(true);
+      } else if (e.code === 'KeyL') {
+        e.preventDefault();
+        cycleEdgeLight();
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
         setSyncOffset((prev) => prev - 0.1);
@@ -358,7 +440,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [toggleFullscreen, isPlaying]);
+  }, [toggleFullscreen, isPlaying, edgeLightMode]);
 
   // Effective time with sync offset applied
   const effectiveTime = Math.max(0, currentTime + syncOffset);
@@ -375,6 +457,14 @@ export const App: React.FC = () => {
     >
       {/* Hidden Audio Element */}
       <audio ref={audioRef} preload="auto" />
+
+      {/* Screen Edge Lights (Ambilight Border Glow) */}
+      <EdgeLights
+        mode={edgeLightMode}
+        palette={palette}
+        isPlaying={isPlaying}
+        intensity={edgeIntensity}
+      />
 
       {/* Dynamic Ambient Background Canvas */}
       {theme === 'aurora' && (
@@ -399,7 +489,7 @@ export const App: React.FC = () => {
         <div className="absolute inset-0 pointer-events-none z-0 cyberpunk-grid opacity-25" />
       )}
 
-      {/* Top Navigation Bar */}
+      {/* Top Header Navigation Bar */}
       <header
         className={`w-full z-40 transition-all duration-500 px-6 py-4 flex items-center justify-between ${
           controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
@@ -407,12 +497,9 @@ export const App: React.FC = () => {
       >
         {/* Brand & Track Info */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-lg">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-lg">
             <Disc3 className={`w-5 h-5 text-white ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
-            <span className="font-extrabold tracking-wider text-sm text-white">VERCI</span>
-            <span className="text-[10px] uppercase font-semibold text-white/50 tracking-widest pl-1 border-l border-white/15 hidden sm:inline">
-              Web
-            </span>
+            <span className="font-extrabold tracking-wider text-sm text-white uppercase">{appName}</span>
           </div>
 
           {currentTrack && (
@@ -434,6 +521,20 @@ export const App: React.FC = () => {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {/* Quick Edge Lights Button */}
+          <button
+            onClick={cycleEdgeLight}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold backdrop-blur-md border transition ${
+              edgeLightMode !== 'off'
+                ? 'bg-amber-400/20 text-amber-300 border-amber-400/40 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
+                : 'bg-white/10 text-white/60 border-white/10 hover:text-white'
+            }`}
+            title="Toggle Edge Lights (Hotkey: L)"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Edge Lights</span>
+          </button>
+
           {/* Search Button */}
           <button
             onClick={() => setIsSearchOpen(true)}
@@ -453,7 +554,7 @@ export const App: React.FC = () => {
             }`}
           >
             <Radio className={`w-4 h-4 ${isSpotifyActive ? 'animate-pulse text-emerald-400' : ''}`} />
-            <span className="hidden md:inline">{isSpotifyActive ? 'Spotify Connected' : 'Spotify'}</span>
+            <span className="hidden md:inline">{isSpotifyActive ? 'Spotify Live' : 'Spotify'}</span>
           </button>
 
           {/* Windows Desktop App Info */}
@@ -479,7 +580,7 @@ export const App: React.FC = () => {
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/10 transition"
-            title="Theme & Display Settings"
+            title="Display & Edge Light Settings"
           >
             <Sliders className="w-4 h-4" />
           </button>
@@ -508,6 +609,7 @@ export const App: React.FC = () => {
           hasLyrics={lyrics.length > 0}
           trackTitle={currentTrack?.title}
           trackArtist={currentTrack?.artist}
+          onOpenSearch={() => setIsSearchOpen(true)}
         />
       </main>
 
@@ -525,12 +627,14 @@ export const App: React.FC = () => {
           volume={volume}
           syncOffset={syncOffset}
           isFullscreen={isFullscreen}
+          edgeLightMode={edgeLightMode}
           onTogglePlay={togglePlay}
           onSeek={handleSeek}
           onVolumeChange={setVolume}
           onNudgeSync={(delta) => setSyncOffset((prev) => prev + delta)}
           onResetSync={() => setSyncOffset(0)}
           onToggleFullscreen={toggleFullscreen}
+          onCycleEdgeLight={cycleEdgeLight}
           isSpotifyActive={isSpotifyActive}
         />
       </div>
@@ -539,7 +643,7 @@ export const App: React.FC = () => {
       <SearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
-        onSelectTrack={selectTrack}
+        onSelectTrack={(t) => selectTrack(t, true)}
         onCustomAudio={handleCustomAudio}
       />
 
@@ -564,11 +668,17 @@ export const App: React.FC = () => {
         setTheme={setTheme}
         fontSize={fontSize}
         setFontSize={setFontSize}
+        edgeLightMode={edgeLightMode}
+        setEdgeLightMode={setEdgeLightMode}
+        edgeIntensity={edgeIntensity}
+        setEdgeIntensity={setEdgeIntensity}
         showClock={showClock}
         setShowClock={setShowClock}
         wakeLockActive={wakeLockActive}
         syncOffset={syncOffset}
         setSyncOffset={setSyncOffset}
+        appName={appName}
+        setAppName={setAppName}
       />
 
       <WindowsAppModal

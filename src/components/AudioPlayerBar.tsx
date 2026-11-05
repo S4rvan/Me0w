@@ -11,8 +11,9 @@ import {
   Rewind,
   Music2,
   Radio,
+  Sparkles,
 } from 'lucide-react';
-import { Track } from '../types';
+import { Track, EdgeLightMode } from '../types';
 
 interface AudioPlayerBarProps {
   currentTrack: Track | null;
@@ -22,12 +23,14 @@ interface AudioPlayerBarProps {
   volume: number;
   syncOffset: number;
   isFullscreen: boolean;
+  edgeLightMode: EdgeLightMode;
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
   onVolumeChange: (vol: number) => void;
   onNudgeSync: (delta: number) => void;
   onResetSync: () => void;
   onToggleFullscreen: () => void;
+  onCycleEdgeLight: () => void;
   isSpotifyActive: boolean;
 }
 
@@ -46,15 +49,18 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
   volume,
   syncOffset,
   isFullscreen,
+  edgeLightMode,
   onTogglePlay,
   onSeek,
   onVolumeChange,
   onNudgeSync,
   onResetSync,
   onToggleFullscreen,
+  onCycleEdgeLight,
   isSpotifyActive,
 }) => {
-  const progressPercent = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
+  const safeDuration = duration > 0 ? duration : 180;
+  const progressPercent = Math.min(100, Math.max(0, (currentTime / safeDuration) * 100));
 
   return (
     <div className="w-full glass-panel border-t border-white/10 px-4 py-3 md:px-8 md:py-4 flex flex-col gap-2 z-40 transition-all duration-300">
@@ -67,17 +73,17 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const ratio = (e.clientX - rect.left) / rect.width;
-            onSeek(ratio * duration);
+            onSeek(ratio * safeDuration);
           }}
-          className="relative flex-1 h-1.5 hover:h-3 bg-white/10 rounded-full cursor-pointer transition-all overflow-hidden"
+          className="relative flex-1 h-2 hover:h-3.5 bg-white/10 rounded-full cursor-pointer transition-all overflow-hidden"
         >
           <div
-            className="h-full bg-gradient-to-r from-white/90 to-white rounded-full transition-all duration-75 relative"
+            className="h-full bg-gradient-to-r from-white/80 via-white to-white rounded-full transition-all duration-75 relative"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
         <span className="text-xs font-mono text-white/50 w-10 text-left select-none">
-          {formatTime(duration)}
+          {formatTime(safeDuration)}
         </span>
       </div>
 
@@ -101,7 +107,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
                 {currentTrack?.title || 'No Track'}
               </p>
               {isSpotifyActive && (
-                <span className="px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <span className="px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 flex-shrink-0">
                   <Radio className="w-2.5 h-2.5 animate-pulse" /> Spotify
                 </span>
               )}
@@ -112,7 +118,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           </div>
         </div>
 
-        {/* Center Controls */}
+        {/* Center Playback Controls */}
         <div className="flex items-center gap-2 md:gap-4">
           <button
             onClick={() => onSeek(Math.max(0, currentTime - 5))}
@@ -124,8 +130,10 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
           <button
             onClick={onTogglePlay}
-            disabled={!currentTrack}
-            className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl font-bold disabled:opacity-40"
+            className={`w-11 h-11 md:w-12 md:h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl font-bold ${
+              !isPlaying ? 'ring-4 ring-white/20' : ''
+            }`}
+            title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? (
               <Pause className="w-5 h-5 fill-current" />
@@ -135,7 +143,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           </button>
 
           <button
-            onClick={() => onSeek(Math.min(duration, currentTime + 5))}
+            onClick={() => onSeek(Math.min(safeDuration, currentTime + 5))}
             className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition"
             title="Forward 5s"
           >
@@ -143,15 +151,29 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           </button>
         </div>
 
-        {/* Right Controls: Sync Nudge, Volume & Fullscreen */}
-        <div className="flex items-center gap-2 md:gap-4">
+        {/* Right Controls: Edge Lights, Sync Nudge, Volume & Fullscreen */}
+        <div className="flex items-center gap-2 md:gap-3">
+          {/* Quick Screen Edge Lights Toggle */}
+          <button
+            onClick={onCycleEdgeLight}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition ${
+              edgeLightMode !== 'off'
+                ? 'bg-amber-400/20 text-amber-300 border-amber-400/40 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
+                : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10 hover:text-white'
+            }`}
+            title="Toggle Edge Lights (Ambilight)"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Edge Lights</span>
+          </button>
+
           {/* Sync Nudge Pill */}
           <div className="hidden sm:flex items-center gap-1 bg-white/5 border border-white/10 px-2 py-1 rounded-xl text-xs">
             <span className="text-white/40 text-[10px] mr-1 uppercase tracking-wider font-semibold">Sync:</span>
             <button
               onClick={() => onNudgeSync(-0.1)}
               className="px-1.5 py-0.5 rounded hover:bg-white/15 text-white/70 active:scale-95 font-mono"
-              title="Nudge lyrics later (-0.1s)"
+              title="Lyrics later (-0.1s)"
             >
               -0.1s
             </button>
@@ -161,7 +183,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
             <button
               onClick={() => onNudgeSync(0.1)}
               className="px-1.5 py-0.5 rounded hover:bg-white/15 text-white/70 active:scale-95 font-mono"
-              title="Nudge lyrics earlier (+0.1s)"
+              title="Lyrics earlier (+0.1s)"
             >
               +0.1s
             </button>
