@@ -5,6 +5,30 @@ const SPOTIFY_TOKEN_KEY = 'verci_spotify_token';
 const SPOTIFY_REFRESH_TOKEN_KEY = 'verci_spotify_refresh_token';
 const SPOTIFY_CODE_VERIFIER_KEY = 'verci_spotify_code_verifier';
 
+// Default Client ID from environment or built-in configuration
+export const DEFAULT_SPOTIFY_CLIENT_ID =
+  ((import.meta as any).env?.VITE_SPOTIFY_CLIENT_ID as string) || '';
+
+export function getEffectiveClientId(): string {
+  const stored = localStorage.getItem(SPOTIFY_CLIENT_ID_KEY);
+  if (stored && stored.trim().length > 0) return stored.trim();
+  return DEFAULT_SPOTIFY_CLIENT_ID.trim();
+}
+
+export function saveClientId(clientId: string) {
+  if (clientId.trim()) {
+    localStorage.setItem(SPOTIFY_CLIENT_ID_KEY, clientId.trim());
+  } else {
+    localStorage.removeItem(SPOTIFY_CLIENT_ID_KEY);
+  }
+}
+
+export function getRedirectUri(): string {
+  const origin = window.location.origin;
+  const path = window.location.pathname.replace(/\/$/, '');
+  return `${origin}${path}/`;
+}
+
 function generateRandomString(length: number): string {
   const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
   const values = crypto.getRandomValues(new Uint8Array(length));
@@ -24,8 +48,13 @@ function base64encode(input: ArrayBuffer): string {
     .replace(/\//g, '_');
 }
 
-export async function initiateSpotifyLogin(clientId: string) {
-  if (!clientId) throw new Error('Client ID required');
+export async function initiateSpotifyLogin(customClientId?: string) {
+  const clientId = customClientId?.trim() || getEffectiveClientId();
+  if (!clientId) {
+    throw new Error('Spotify Client ID is required to start authentication.');
+  }
+
+  // Persist the active client ID for the token exchange callback
   localStorage.setItem(SPOTIFY_CLIENT_ID_KEY, clientId);
 
   const codeVerifier = generateRandomString(64);
@@ -34,7 +63,7 @@ export async function initiateSpotifyLogin(clientId: string) {
   const hashed = await sha256(codeVerifier);
   const codeChallenge = base64encode(hashed);
 
-  const redirectUri = window.location.origin + window.location.pathname;
+  const redirectUri = getRedirectUri();
   const scope = 'user-read-currently-playing user-read-playback-state';
 
   const authUrl = new URL('https://accounts.spotify.com/authorize');
@@ -56,8 +85,8 @@ export async function handleSpotifyCallback(): Promise<boolean> {
   if (!code) return false;
 
   const codeVerifier = localStorage.getItem(SPOTIFY_CODE_VERIFIER_KEY);
-  const clientId = localStorage.getItem(SPOTIFY_CLIENT_ID_KEY);
-  const redirectUri = window.location.origin + window.location.pathname;
+  const clientId = getEffectiveClientId();
+  const redirectUri = getRedirectUri();
 
   if (!codeVerifier || !clientId) return false;
 
@@ -80,9 +109,11 @@ export async function handleSpotifyCallback(): Promise<boolean> {
       if (data.refresh_token) {
         localStorage.setItem(SPOTIFY_REFRESH_TOKEN_KEY, data.refresh_token);
       }
-      // Clean query params from URL
+      // Clean query params from URL without refreshing
       window.history.replaceState({}, document.title, window.location.pathname);
       return true;
+    } else {
+      console.error('Spotify token exchange response:', data);
     }
   } catch (err) {
     console.error('Spotify token exchange failed:', err);
@@ -113,7 +144,7 @@ export async function fetchCurrentlyPlaying(token: string): Promise<SpotifyPlayb
     });
 
     if (res.status === 204 || res.status === 202) {
-      // Nothing is currently playing
+      // Nothing is currently playing on user's device
       return null;
     }
 

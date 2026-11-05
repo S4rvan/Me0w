@@ -747,6 +747,7 @@ export const App: React.FC = () => {
           setSpotifyToken(getStoredSpotifyToken());
           setIsSpotifyActive(true);
         }}
+        onOpenSearch={() => setIsSearchOpen(true)}
       />
 
       <SettingsModal

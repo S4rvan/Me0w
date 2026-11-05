@@ -33,7 +33,26 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-// Convert Hex to HSL
+function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+
+  if (0 <= h && h < 60) { r = c; g = x; b = 0; }
+  else if (60 <= h && h < 120) { r = x; g = c; b = 0; }
+  else if (120 <= h && h < 180) { r = 0; g = c; b = x; }
+  else if (180 <= h && h < 240) { r = 0; g = x; b = c; }
+  else if (240 <= h && h < 300) { r = x; g = 0; b = c; }
+  else if (300 <= h && h < 360) { r = c; g = 0; b = x; }
+
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  };
+}
+
 function hexToHsl(hex: string): { h: number; s: number; l: number } {
   let clean = hex.replace('#', '');
   if (clean.length === 3) {
@@ -63,7 +82,7 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } {
   return { h, s, l };
 }
 
-// Quick Preset Themes
+// Preset Swatches for fast edge lighting themes
 const PRESET_SWATCHES = [
   { name: 'Neon Coral', hex: '#f43f5e' },
   { name: 'Electric Cyan', hex: '#06b6d4' },
@@ -105,7 +124,7 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
     }
   }, [currentPalette.primary]);
 
-  // Update color palette when HSL changes
+  // Update edge glow palette
   const applyColor = useCallback((h: number, s: number, l: number) => {
     const primary = hslToHex(h, s, l);
     const secondary = hslToHex((h + 20) % 360, Math.min(1, s * 0.95), Math.min(0.85, l * 1.15));
@@ -121,6 +140,7 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
   }, [onUpdatePalette]);
 
   // Handle interaction on the Circular Wheel
+  // Matches Image 2: Cyan at Top (12 o'clock), Blue at Top-Right/Right, Red at Bottom (6 o'clock), Green at Left
   const handleWheelMove = useCallback((clientX: number, clientY: number) => {
     const el = wheelContainerRef.current;
     if (!el) return;
@@ -133,11 +153,11 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
     const dist = Math.sqrt(x * x + y * y);
     const maxRadius = cx;
 
-    // Angle relative to 3 o'clock (0deg), standard math coordinates
-    let angle = (Math.atan2(y, x) * 180) / Math.PI;
-    if (angle < 0) angle += 360;
+    // Clock angle starting from 12 o'clock (0 to 360 clockwise)
+    const clockAngle = (Math.atan2(y, x) * 180 / Math.PI + 90 + 360) % 360;
 
-    const newHue = Math.round(angle);
+    // Hue: Cyan (180) at 12 o'clock (0deg), Red (0/360) at 6 o'clock (180deg)
+    const newHue = Math.round((clockAngle - 180 + 360) % 360);
     const newSat = Math.max(0, Math.min(1, dist / maxRadius));
 
     setHue(newHue);
@@ -153,7 +173,7 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
     const relY = clientY - sliderRect.top;
     const ratio = Math.max(0, Math.min(1, relY / sliderRect.height));
     // Top is 1.0 (white), bottom is 0.0 (black)
-    const newLightness = Math.max(0.1, Math.min(0.9, 1 - ratio));
+    const newLightness = Math.max(0.05, Math.min(0.95, 1 - ratio));
 
     setLightness(newLightness);
     applyColor(hue, saturation, newLightness);
@@ -198,21 +218,23 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
   if (!isOpen) return null;
 
   const currentColorHex = hslToHex(hue, saturation, lightness);
+  const rgb = hslToRgb(hue, saturation, lightness);
 
-  // Selector thumb position on wheel (210px diameter, radius = 105px)
-  const wheelRadius = 105;
+  // Selector thumb position on wheel (220px diameter, radius = 110px)
+  const wheelRadius = 110;
+  const clockAngle = (hue + 180) % 360;
+  const mathAngle = ((clockAngle - 90) * Math.PI) / 180;
   const thumbDist = saturation * wheelRadius;
-  const thumbRad = (hue * Math.PI) / 180;
-  const thumbX = wheelRadius + Math.cos(thumbRad) * thumbDist;
-  const thumbY = wheelRadius + Math.sin(thumbRad) * thumbDist;
+  const thumbX = wheelRadius + Math.cos(mathAngle) * thumbDist;
+  const thumbY = wheelRadius + Math.sin(mathAngle) * thumbDist;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fade-in">
-      <div className="relative w-full max-w-sm bg-[#121217] border border-white/15 rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.9)] text-white select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-fade-in">
+      <div className="relative w-full max-w-sm bg-[#16161b] border border-white/15 rounded-3xl p-6 shadow-[0_25px_70px_rgba(0,0,0,0.95)] text-white select-none">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-full bg-rose-500/20 text-rose-400">
+            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
               <Palette className="w-4 h-4" />
             </div>
             <div>
@@ -228,23 +250,23 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
           </button>
         </div>
 
-        {/* The Circular Color Wheel & Vertical Lightness Slider (Pure CSS, 100% Reliable!) */}
+        {/* The Circular Color Wheel & Vertical Lightness Slider (Identical to User Reference Image) */}
         <div className="flex items-center justify-center gap-5 my-6">
-          {/* Circular Wheel (CSS Conic + Radial Gradient - Never Blank or Broken!) */}
+          {/* Circular Wheel (CSS Conic Gradient matching reference image: Cyan at top, Red at bottom) */}
           <div
             ref={wheelContainerRef}
-            className="relative w-[210px] h-[210px] rounded-full cursor-crosshair shadow-2xl flex-shrink-0 border-2 border-white/20 select-none overflow-hidden"
+            className="relative w-[220px] h-[220px] rounded-full cursor-crosshair shadow-2xl flex-shrink-0 border-2 border-white/20 select-none overflow-hidden"
             style={{
               background: `
-                radial-gradient(circle closest-side, #ffffff 0%, rgba(255,255,255,0) 100%),
-                conic-gradient(from 90deg, 
-                  #ff0000 0deg, 
-                  #ffff00 60deg, 
-                  #00ff00 120deg, 
-                  #00ffff 180deg, 
-                  #0000ff 240deg, 
-                  #ff00ff 300deg, 
-                  #ff0000 360deg
+                radial-gradient(circle closest-side, #ffffff 0%, rgba(255,255,255,0.7) 30%, rgba(255,255,255,0) 100%),
+                conic-gradient(from 0deg, 
+                  #00ffff 0deg, 
+                  #0000ff 60deg, 
+                  #ff00ff 120deg, 
+                  #ff0000 180deg, 
+                  #ffff00 240deg, 
+                  #00ff00 300deg, 
+                  #00ffff 360deg
                 )
               `,
             }}
@@ -259,21 +281,25 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
               }
             }}
           >
-            {/* Color Wheel Selector Handle Thumb (White Ring) */}
+            {/* Color Wheel Selector Handle Thumb (Matches reference: ring with white border and dark outline) */}
             <div
-              className="absolute w-5 h-5 rounded-full border-2 border-white shadow-[0_0_8px_rgba(0,0,0,0.9)] -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-75"
+              className="absolute w-4 h-4 rounded-full border-2 border-white bg-black/40 shadow-[0_0_6px_rgba(0,0,0,0.9)] -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-75 flex items-center justify-center"
               style={{
                 left: `${thumbX}px`,
                 top: `${thumbY}px`,
-                backgroundColor: currentColorHex,
               }}
-            />
+            >
+              <div
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: currentColorHex }}
+              />
+            </div>
           </div>
 
-          {/* Vertical Lightness / Brightness Slider */}
+          {/* Vertical Lightness / Brightness Slider (Matches reference: white at top to black at bottom) */}
           <div
             ref={sliderRef}
-            className="relative w-6 h-[210px] rounded-full cursor-pointer border-2 border-white/20 shadow-lg flex-shrink-0 select-none overflow-hidden"
+            className="relative w-7 h-[220px] rounded-full cursor-pointer border-2 border-white/20 shadow-lg flex-shrink-0 select-none overflow-hidden"
             style={{
               background: `linear-gradient(to bottom, #ffffff 0%, hsl(${hue}, ${saturation * 100}%, 50%) 50%, #000000 100%)`,
             }}
@@ -288,55 +314,91 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
               }
             }}
           >
-            {/* Slider Handle Thumb */}
+            {/* Slider Handle Thumb (White pill with central ring, matching reference) */}
             <div
-              className="absolute left-0 right-0 h-4 border-2 border-white rounded-full bg-white shadow-[0_0_8px_rgba(0,0,0,0.8)] pointer-events-none -translate-y-1/2"
+              className="absolute left-0.5 right-0.5 h-4 border-2 border-white rounded-full bg-white shadow-[0_0_8px_rgba(0,0,0,0.8)] pointer-events-none -translate-y-1/2 flex items-center justify-center"
               style={{ top: `${(1 - lightness) * 100}%` }}
-            />
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-black/60" />
+            </div>
           </div>
         </div>
 
-        {/* Format Tabs & Color Values Box (Matches Reference Image) */}
-        <div className="bg-[#181820] border border-white/10 rounded-2xl p-3 mb-4">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-xs font-mono">
-            <div className="flex gap-1">
-              {(['HSL', 'RGB', 'Hex'] as const).map((tab) => (
+        {/* Format Tabs & Color Values Box (Exact match to Reference Image 2) */}
+        <div className="bg-[#1e1e26] border border-white/10 rounded-2xl p-3 mb-4 space-y-2.5">
+          {/* Tabs: RGB | HSL | Hex */}
+          <div className="flex items-center justify-between pb-2 border-b border-white/10 text-xs font-mono">
+            <div className="flex bg-black/40 rounded-xl p-0.5 border border-white/10">
+              {(['RGB', 'HSL', 'Hex'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-semibold transition ${
-                    activeTab === tab ? 'bg-rose-500 text-white' : 'text-white/50 hover:text-white'
+                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition ${
+                    activeTab === tab
+                      ? 'bg-blue-600 text-white shadow'
+                      : 'text-white/50 hover:text-white'
                   }`}
                 >
                   {tab}
                 </button>
               ))}
             </div>
+
             {/* Current Color Swatch Pill */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2 bg-black/40 px-2.5 py-1 rounded-xl border border-white/10">
               <div
-                className="w-4 h-4 rounded-full border border-white/30 shadow-inner"
+                className="w-3.5 h-3.5 rounded-full border border-white/40 shadow-inner"
                 style={{ backgroundColor: currentColorHex }}
               />
-              <span className="font-mono text-[11px] uppercase text-white/80">{currentColorHex}</span>
+              <span className="font-mono text-[11px] uppercase font-bold text-white/90">
+                {currentColorHex}
+              </span>
             </div>
           </div>
 
-          {/* HSL Info */}
-          <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono">
-            <div className="bg-white/5 py-1 px-1.5 rounded">
-              <span className="text-white/40 block text-[9px] uppercase">HUE</span>
-              <span className="font-bold text-rose-300">{Math.round(hue)}°</span>
+          {/* Formatted Readout Table */}
+          {activeTab === 'HSL' && (
+            <div className="space-y-1.5 text-xs font-mono">
+              <div className="flex items-center justify-between bg-black/30 px-3 py-1.5 rounded-xl border border-white/5">
+                <span className="text-white/50 font-bold">H</span>
+                <span className="text-white font-semibold">{(hue / 360).toFixed(3)} ({Math.round(hue)}°)</span>
+              </div>
+              <div className="flex items-center justify-between bg-black/30 px-3 py-1.5 rounded-xl border border-white/5">
+                <span className="text-white/50 font-bold">S</span>
+                <span className="text-white font-semibold">{saturation.toFixed(3)} ({Math.round(saturation * 100)}%)</span>
+              </div>
+              <div className="flex items-center justify-between bg-black/30 px-3 py-1.5 rounded-xl border border-white/5">
+                <span className="text-white/50 font-bold">L</span>
+                <span className="text-white font-semibold">{lightness.toFixed(3)} ({Math.round(lightness * 100)}%)</span>
+              </div>
             </div>
-            <div className="bg-white/5 py-1 px-1.5 rounded">
-              <span className="text-white/40 block text-[9px] uppercase">SAT</span>
-              <span className="font-bold text-rose-300">{Math.round(saturation * 100)}%</span>
+          )}
+
+          {activeTab === 'RGB' && (
+            <div className="space-y-1.5 text-xs font-mono">
+              <div className="flex items-center justify-between bg-black/30 px-3 py-1.5 rounded-xl border border-white/5">
+                <span className="text-rose-400 font-bold">R</span>
+                <span className="text-white font-semibold">{rgb.r}</span>
+              </div>
+              <div className="flex items-center justify-between bg-black/30 px-3 py-1.5 rounded-xl border border-white/5">
+                <span className="text-emerald-400 font-bold">G</span>
+                <span className="text-white font-semibold">{rgb.g}</span>
+              </div>
+              <div className="flex items-center justify-between bg-black/30 px-3 py-1.5 rounded-xl border border-white/5">
+                <span className="text-blue-400 font-bold">B</span>
+                <span className="text-white font-semibold">{rgb.b}</span>
+              </div>
             </div>
-            <div className="bg-white/5 py-1 px-1.5 rounded">
-              <span className="text-white/40 block text-[9px] uppercase">LUM</span>
-              <span className="font-bold text-rose-300">{Math.round(lightness * 100)}%</span>
+          )}
+
+          {activeTab === 'Hex' && (
+            <div className="space-y-1.5 text-xs font-mono">
+              <div className="flex items-center justify-between bg-black/30 px-3 py-2 rounded-xl border border-white/5">
+                <span className="text-white/50 font-bold">HEX</span>
+                <span className="text-rose-300 font-bold text-sm tracking-widest">{currentColorHex.toUpperCase()}</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Quick Preset Swatches */}
@@ -353,7 +415,7 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
                   setLightness(hsl.l);
                   applyColor(hsl.h, hsl.s, hsl.l);
                 }}
-                className="w-6 h-6 rounded-full border border-white/20 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center"
+                className="w-6 h-6 rounded-full border border-white/20 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center shadow-md"
                 style={{ backgroundColor: swatch.hex }}
                 title={swatch.name}
               >
@@ -369,15 +431,15 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
         <div className="space-y-3 pt-3 border-t border-white/10">
           <div className="flex items-center justify-between">
             <span className="text-xs text-white/70 font-medium">Borderline Mode:</span>
-            <div className="flex gap-1">
+            <div className="flex gap-1 bg-black/40 p-0.5 rounded-xl border border-white/10">
               {(['neon', 'subtle', 'pulse', 'off'] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => onUpdateEdgeMode(m)}
-                  className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition ${
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition ${
                     edgeLightMode === m
-                      ? 'bg-rose-500 text-white'
-                      : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white'
+                      ? 'bg-rose-500 text-white shadow'
+                      : 'text-white/50 hover:text-white'
                   }`}
                 >
                   {m}
