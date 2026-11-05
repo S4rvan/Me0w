@@ -33,7 +33,7 @@ import {
 
 import { ThreadLyricsDisplay } from './components/ThreadLyricsDisplay';
 import { StringLights } from './components/StringLights';
-import { CornerVinyl } from './components/CornerVinyl';
+import { RetroTurntable } from './components/RetroTurntable';
 import { WaterSurface, RippleEvent } from './components/WaterSurface';
 import { SearchModal } from './components/SearchModal';
 import { SpotifyConnectModal } from './components/SpotifyConnectModal';
@@ -572,8 +572,8 @@ export const App: React.FC = () => {
         />
       </main>
 
-      {/* Corner Spinning Vinyl Record in Bottom-Left (ALWAYS VISIBLE & SPINNING) */}
-      <CornerVinyl
+      {/* Retro Illustrated Turntable Deck (Matches User's Sketch) */}
+      <RetroTurntable
         currentTrack={currentTrack}
         isPlaying={isPlaying}
         currentTime={currentTime}

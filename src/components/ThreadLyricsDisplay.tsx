@@ -83,27 +83,38 @@ interface FlattenedWord {
   floatDelay: number;
 }
 
-const QUEUE_CAP = 10; // 10-12 words in queue
+const QUEUE_CAP = 8; // 8 spacious words in queue with plenty of room
 const IDLE_FADE_DELAY = 1.4; // Fade words after 1.4s of silence
 
-// Natural meandering stream path across the screen
-function getFlowingWordCoordinates(index: number): { x: number; y: number } {
-  // Gentle snake/wave flow across screen in 3 undulating bands
-  const cycle = index % 14;
-  const progressInCycle = cycle / 14; // 0 to 1
+// 12 Spacious Non-Overlapping Spatial Anchor Regions
+const SPATIOUS_ANCHORS: { x: number; y: number }[] = [
+  { x: 22, y: 32 }, // 0: Top-Left
+  { x: 50, y: 25 }, // 1: Top-Center
+  { x: 78, y: 32 }, // 2: Top-Right
+  { x: 30, y: 48 }, // 3: Mid-Left
+  { x: 70, y: 46 }, // 4: Mid-Right
+  { x: 24, y: 66 }, // 5: Bottom-Left
+  { x: 52, y: 68 }, // 6: Bottom-Center
+  { x: 78, y: 64 }, // 7: Bottom-Right
+  { x: 38, y: 36 }, // 8: Center-Upper-Left
+  { x: 64, y: 56 }, // 9: Center-Lower-Right
+  { x: 36, y: 60 }, // 10: Center-Lower-Left
+  { x: 62, y: 32 }, // 11: Center-Upper-Right
+];
 
-  // Left to right progression with organic wave
-  const baseX = 20 + progressInCycle * 60; // 20% to 80% width
-  // Gentle wave up and down
-  const waveY = 46 + Math.sin(progressInCycle * Math.PI * 2) * 16;
+// Spatially separated leap coordinate generator: guarantees words are spaced far apart
+function getSpaciousWordCoordinates(index: number): { x: number; y: number } {
+  // Use prime leap multiplier 7 to ensure consecutive words jump across opposite quadrants
+  const anchorIdx = (index * 7) % SPATIOUS_ANCHORS.length;
+  const base = SPATIOUS_ANCHORS[anchorIdx];
 
-  // Add subtle organic jitter so it feels like natural water lilies
-  const jitterX = ((index * 13) % 9) - 4;
-  const jitterY = ((index * 17) % 9) - 4;
+  // Subtle organic float offset (±2%) so it never feels robotic
+  const jitterX = ((index * 11) % 5) - 2;
+  const jitterY = ((index * 13) % 5) - 2;
 
   return {
-    x: Math.max(18, Math.min(82, baseX + jitterX)),
-    y: Math.max(24, Math.min(74, waveY + jitterY)),
+    x: Math.max(18, Math.min(82, base.x + jitterX)),
+    y: Math.max(22, Math.min(74, base.y + jitterY)),
   };
 }
 
@@ -123,7 +134,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
 }) => {
   const lastSpawnedWordId = useRef<number>(-1);
 
-  // 1. Flatten all words with TV Girl pastel colors & flowing stream positions
+  // 1. Flatten all words with TV Girl pastel colors & spacious non-overlapping positions
   const allWords = useMemo<FlattenedWord[]>(() => {
     const list: FlattenedWord[] = [];
     let counter = 0;
@@ -132,7 +143,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
       if (!line.words || line.words.length === 0) continue;
       for (const w of line.words) {
         if (!w.text.trim()) continue;
-        const pos = getFlowingWordCoordinates(counter);
+        const pos = getSpaciousWordCoordinates(counter);
         const color = TV_GIRL_PALETTE[counter % TV_GIRL_PALETTE.length];
 
         list.push({
@@ -144,7 +155,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
           x: pos.x,
           y: pos.y,
           color,
-          floatDelay: (counter * 0.35) % 3,
+          floatDelay: (counter * 0.4) % 3,
         });
         counter++;
       }
@@ -192,7 +203,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
     setIsInstrumental(instrumentalNow);
   }, [instrumentalNow, setIsInstrumental]);
 
-  // 4. Compute active queue of 10-12 words
+  // 4. Compute active queue of 7-8 spacious words
   const queueWords = useMemo(() => {
     if (currentWordIndex === -1 || instrumentalNow) return [];
 
@@ -212,7 +223,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
           xPercent: word.x,
           yPercent: word.y,
           color: word.color.ripple,
-          size: 210,
+          size: 220,
         });
       }
     }
@@ -233,8 +244,8 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
       const midX = (p1.x + p2.x) / 2;
       const midY = (p1.y + p2.y) / 2;
 
-      const ctrlX = midX - dy * 0.12;
-      const ctrlY = midY + dx * 0.12;
+      const ctrlX = midX - dy * 0.14;
+      const ctrlY = midY + dx * 0.14;
 
       segments.push({
         path: `M ${p1.x},${p1.y} Q ${ctrlX},${ctrlY} ${p2.x},${p2.y}`,
@@ -244,14 +255,14 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
     return segments;
   }, [queueWords]);
 
-  // Font size multiplier (Now bigger as requested)
+  // Font size multiplier (Spacious and large)
   const fontSizeClass = useMemo(() => {
     switch (fontSize) {
-      case 'small': return 'text-xl md:text-3xl';
-      case 'large': return 'text-3xl md:text-5xl lg:text-6xl';
-      case 'huge': return 'text-4xl md:text-6xl lg:text-7xl';
+      case 'small': return 'text-2xl md:text-3xl';
+      case 'large': return 'text-4xl md:text-6xl lg:text-7xl';
+      case 'huge': return 'text-5xl md:text-7xl lg:text-8xl';
       case 'medium':
-      default: return 'text-2xl md:text-4xl lg:text-5xl';
+      default: return 'text-3xl md:text-5xl lg:text-6xl';
     }
   }, [fontSize]);
 
@@ -348,7 +359,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
           <circle
             cx={activeWord.x}
             cy={activeWord.y}
-            r="5"
+            r="6"
             fill="none"
             stroke={activeWord.color.thread}
             strokeWidth="0.22"
@@ -358,7 +369,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
         )}
       </svg>
 
-      {/* 3. Floating Words Queue with TV Girl Pastel Aesthetics */}
+      {/* 3. Spacious Floating Words Queue with TV Girl Pastel Aesthetics */}
       <div
         className="absolute inset-0 z-20 pointer-events-none transition-opacity duration-700"
         style={{ opacity: idleFadeRatio }}
@@ -369,14 +380,14 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
           const isOldest = qIdx === 0 && queueWords.length >= QUEUE_CAP;
 
           // Word styling: TV Girl bright-but-pale soothing pastels
-          let wordOpacity = 0.82;
-          let glowStyle = `0 0 12px ${word.color.glow}`;
+          let wordOpacity = 0.85;
+          let glowStyle = `0 0 14px ${word.color.glow}`;
 
           if (isCurrent) {
             wordOpacity = 1;
-            glowStyle = `0 0 22px ${word.color.glow}, 0 0 35px ${word.color.glow}`;
+            glowStyle = `0 0 24px ${word.color.glow}, 0 0 40px ${word.color.glow}`;
           } else if (isOldest) {
-            wordOpacity = 0.3;
+            wordOpacity = 0.28;
           }
 
           return (
@@ -398,11 +409,11 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
                   opacity: wordOpacity,
                   textShadow: glowStyle,
                   transition: 'opacity 0.4s ease, transform 0.4s ease, color 0.4s ease',
-                  transform: isCurrent ? 'scale(1.08)' : isOldest ? 'scale(0.92)' : 'scale(1)',
+                  transform: isCurrent ? 'scale(1.1)' : isOldest ? 'scale(0.9)' : 'scale(1)',
                   animation: `floatingDrift 6s ease-in-out infinite alternate`,
                   animationDelay: `${word.floatDelay}s`,
                 }}
-                className={`inline-block font-bold tracking-tight select-none ${fontSizeClass} ${
+                className={`inline-block font-extrabold tracking-tight select-none ${fontSizeClass} ${
                   isEntering ? 'animate-word-arrive' : ''
                 }`}
               >
