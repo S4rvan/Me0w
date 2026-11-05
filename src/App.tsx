@@ -184,7 +184,17 @@ export const App: React.FC = () => {
       if (isPlaying) {
         const audio = audioRef.current;
         if (audio && !audio.paused && !isSpotifyActive) {
-          setCurrentTime(audio.currentTime);
+          // Continuous 60fps high-precision clock (eliminates HTML5 audio 250ms step-stutter)
+          setCurrentTime((prev) => {
+            const target = audio.currentTime;
+            const diff = target - prev;
+            // If user sought or audio jumped, snap immediately
+            if (Math.abs(diff) > 0.35) {
+              return target;
+            }
+            // Otherwise advance smoothly by frame delta and gently reconcile minor audio clock drift
+            return prev + delta + diff * 0.1;
+          });
         } else {
           // Virtual timer or Spotify progress interpolation
           setCurrentTime((prev) => prev + delta);
