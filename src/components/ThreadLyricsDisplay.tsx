@@ -333,8 +333,8 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
     const FADE_OUT_DURATION = 1.2; // Quick, graceful 1.2s decay for completed lyrics
 
     for (const phrase of constellations) {
-      // Phrase is active or within its 1.2s graceful fade-out window
-      const isOngoing = currentTime >= phrase.start && currentTime <= phrase.end;
+      // Phrase starts softly 0.25s ahead to eliminate any perceived vocal start delay
+      const isOngoing = currentTime >= phrase.start - 0.25 && currentTime <= phrase.end;
       const isFading = currentTime > phrase.end && currentTime <= phrase.end + FADE_OUT_DURATION;
 
       if (isOngoing || isFading) {
@@ -353,13 +353,14 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
           const star = phrase.stars[i];
           const nextStar = phrase.stars[i + 1];
 
-          if (currentTime >= star.start) {
+          // 0.1s anticipation for crisp, zero-latency lyric synchronization
+          if (currentTime >= star.start - 0.1) {
             spawnedStars.push(star);
 
             // Stays active and prominent following the vocal flow until the next star begins,
             // or through the phrase duration if it's the final word
-            const singingUntil = nextStar ? nextStar.start : Math.max(star.end, phrase.end);
-            if (currentTime >= star.start && currentTime <= singingUntil) {
+            const singingUntil = nextStar ? nextStar.start - 0.05 : Math.max(star.end, phrase.end);
+            if (currentTime >= star.start - 0.1 && currentTime <= singingUntil) {
               activeStar = star;
             }
           }
@@ -528,6 +529,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
             {/* Stars and Word Labels */}
             {spawnedStars.map((star) => {
               const isActive = activeStar?.id === star.id;
+              const isTop = star.labelPlacement === 'top';
 
               return (
                 <div
@@ -536,7 +538,9 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
                     e.stopPropagation();
                     onSeek(star.start);
                   }}
-                  className="absolute pointer-events-auto cursor-pointer flex items-center gap-2 transition-all duration-300"
+                  className={`absolute pointer-events-auto cursor-pointer flex items-center transition-all duration-200 ${
+                    isTop ? 'flex-col-reverse' : 'flex-col'
+                  } gap-1.5`}
                   style={{
                     left: `${star.x}%`,
                     top: `${star.y}%`,
@@ -550,7 +554,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
                     color={isActive ? star.color : 'rgba(255, 255, 255, 0.75)'}
                   />
 
-                  {/* Word Label (Much Bigger and Bolder!) */}
+                  {/* Word Label (Never wraps, prominent, sharp glow) */}
                   <span
                     style={{
                       color: isActive ? star.color : 'rgba(255, 255, 255, 0.82)',
@@ -558,7 +562,7 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
                         ? `0 0 16px ${star.color}, 0 0 32px ${star.color}`
                         : '0 0 6px rgba(255, 255, 255, 0.35)',
                     }}
-                    className={`inline-block font-black tracking-tight select-none transition-all duration-300 ${
+                    className={`inline-block whitespace-nowrap font-black tracking-tight select-none transition-all duration-200 ${
                       isActive
                         ? `${activeFontSizeClass} font-black z-30 scale-105`
                         : 'text-sm sm:text-base md:text-lg lg:text-xl font-bold z-20'

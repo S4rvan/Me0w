@@ -42,9 +42,11 @@ import { SettingsModal } from './components/SettingsModal';
 import { WindowsAppModal } from './components/WindowsAppModal';
 import { ShareModal } from './components/ShareModal';
 import { LockscreenClock } from './components/LockscreenClock';
+import { ColorWheelModal } from './components/ColorWheelModal';
 
+const savedEdgeColor = typeof window !== 'undefined' ? localStorage.getItem('verci_custom_edge_color') : null;
 const DEFAULT_PALETTE: ColorPalette = {
-  primary: '#f43f5e',
+  primary: savedEdgeColor || '#f43f5e',
   secondary: '#fb7185',
   accent: '#fb923c',
   background: '#000000',
@@ -103,6 +105,7 @@ export const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWindowsAppOpen, setIsWindowsAppOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isColorWheelOpen, setIsColorWheelOpen] = useState(false);
 
   // Audio element reference & 60fps frame loop
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -477,6 +480,9 @@ export const App: React.FC = () => {
       } else if (e.code === 'KeyL') {
         e.preventDefault();
         setStringLightsEnabled((prev) => !prev);
+      } else if (e.code === 'KeyC') {
+        e.preventDefault();
+        setIsColorWheelOpen((prev) => !prev);
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
         setSyncOffset((prev) => prev - 0.1);
@@ -567,6 +573,19 @@ export const App: React.FC = () => {
           >
             <Lightbulb className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">String Lights</span>
+          </button>
+
+          {/* Circular Color Wheel Button for Borderline Lights */}
+          <button
+            onClick={() => setIsColorWheelOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md border border-white/10 bg-white/10 hover:bg-white/20 text-white transition active:scale-95 shadow-md"
+            title="Borderline Lights Color Wheel (Hotkey: C)"
+          >
+            <div
+              className="w-3.5 h-3.5 rounded-full border border-white/40 shadow-sm"
+              style={{ backgroundColor: palette.primary }}
+            />
+            <span className="hidden sm:inline">Border Lights</span>
           </button>
 
           {/* Search Button */}
@@ -759,6 +778,18 @@ export const App: React.FC = () => {
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
         currentTrack={currentTrack}
+      />
+
+      {/* Circular Color Wheel Modal for Borderline Lights (From User Reference Image) */}
+      <ColorWheelModal
+        isOpen={isColorWheelOpen}
+        onClose={() => setIsColorWheelOpen(false)}
+        currentPalette={palette}
+        onUpdatePalette={setPalette}
+        edgeLightMode={edgeLightMode}
+        onUpdateEdgeMode={setEdgeLightMode}
+        edgeIntensity={stringLightsIntensity}
+        onUpdateEdgeIntensity={setStringLightsIntensity}
       />
     </div>
   );
