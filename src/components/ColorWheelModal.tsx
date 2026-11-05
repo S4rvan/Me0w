@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Palette, Sparkles, Check } from 'lucide-react';
+import { X, Palette, Check } from 'lucide-react';
 import { ColorPalette, EdgeLightMode } from '../types';
 
 interface ColorWheelModalProps {
@@ -85,7 +85,9 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
   edgeIntensity,
   onUpdateEdgeIntensity,
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wheelContainerRef = useRef<HTMLDivElement | null>(null);
+  const sliderRef = useRef<HTMLDivElement | null>(null);
+
   const [hue, setHue] = useState<number>(345);
   const [saturation, setSaturation] = useState<number>(0.85);
   const [lightness, setLightness] = useState<number>(0.55);
@@ -103,41 +105,6 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
     }
   }, [currentPalette.primary]);
 
-  // Draw the circular color wheel on the canvas
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const width = canvas.width;
-    const height = canvas.height;
-    const cx = width / 2;
-    const cy = height / 2;
-    const radius = cx - 2;
-
-    ctx.clearRect(0, 0, width, height);
-
-    // Draw full 360-degree color wheel with radial saturation gradient
-    for (let angle = 0; angle < 360; angle += 1) {
-      const startAngle = ((angle - 1) * Math.PI) / 180;
-      const endAngle = ((angle + 1) * Math.PI) / 180;
-
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, radius, startAngle, endAngle);
-      ctx.closePath();
-
-      // Radial gradient from white center to full hue on perimeter
-      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-      grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(1, `hsl(${angle}, 100%, 50%)`);
-
-      ctx.fillStyle = grad;
-      ctx.fill();
-    }
-  }, []);
-
   // Update color palette when HSL changes
   const applyColor = useCallback((h: number, s: number, l: number) => {
     const primary = hslToHex(h, s, l);
@@ -150,15 +117,14 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
       accent,
       background: '#000000',
     });
-    // Persist
     localStorage.setItem('verci_custom_edge_color', primary);
   }, [onUpdatePalette]);
 
   // Handle interaction on the Circular Wheel
   const handleWheelMove = useCallback((clientX: number, clientY: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
+    const el = wheelContainerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height / 2;
     const x = clientX - rect.left - cx;
@@ -167,7 +133,7 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
     const dist = Math.sqrt(x * x + y * y);
     const maxRadius = cx;
 
-    // Angle to Hue (0 to 360)
+    // Angle relative to 3 o'clock (0deg), standard math coordinates
     let angle = (Math.atan2(y, x) * 180) / Math.PI;
     if (angle < 0) angle += 360;
 
@@ -180,7 +146,10 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
   }, [lightness, applyColor]);
 
   // Handle interaction on the Vertical Lightness Slider
-  const handleSliderMove = useCallback((clientY: number, sliderRect: DOMRect) => {
+  const handleSliderMove = useCallback((clientY: number) => {
+    const el = sliderRef.current;
+    if (!el) return;
+    const sliderRect = el.getBoundingClientRect();
     const relY = clientY - sliderRect.top;
     const ratio = Math.max(0, Math.min(1, relY / sliderRect.height));
     // Top is 1.0 (white), bottom is 0.0 (black)
@@ -190,32 +159,48 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
     applyColor(hue, saturation, newLightness);
   }, [hue, saturation, applyColor]);
 
-  // Global mouse / touch move listeners while dragging
+  // Global mouse & touch listeners while dragging
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (isDraggingWheel.current) {
         handleWheelMove(e.clientX, e.clientY);
+      } else if (isDraggingSlider.current) {
+        handleSliderMove(e.clientY);
       }
     };
-    const onMouseUp = () => {
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        if (isDraggingWheel.current) {
+          handleWheelMove(e.touches[0].clientX, e.touches[0].clientY);
+        } else if (isDraggingSlider.current) {
+          handleSliderMove(e.touches[0].clientY);
+        }
+      }
+    };
+    const onStopDrag = () => {
       isDraggingWheel.current = false;
       isDraggingSlider.current = false;
     };
 
     window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('mouseup', onStopDrag);
+    window.addEventListener('touchmove', onTouchMove);
+    window.addEventListener('touchend', onStopDrag);
+
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('mouseup', onStopDrag);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onStopDrag);
     };
-  }, [handleWheelMove]);
+  }, [handleWheelMove, handleSliderMove]);
 
   if (!isOpen) return null;
 
   const currentColorHex = hslToHex(hue, saturation, lightness);
 
-  // Selector thumb position on wheel
-  const wheelRadius = 100;
+  // Selector thumb position on wheel (210px diameter, radius = 105px)
+  const wheelRadius = 105;
   const thumbDist = saturation * wheelRadius;
   const thumbRad = (hue * Math.PI) / 180;
   const thumbX = wheelRadius + Math.cos(thumbRad) * thumbDist;
@@ -226,8 +211,8 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
       <div className="relative w-full max-w-sm bg-[#121217] border border-white/15 rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.9)] text-white select-none">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-full bg-rose-500/20 text-rose-400">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-full bg-rose-500/20 text-rose-400">
               <Palette className="w-4 h-4" />
             </div>
             <div>
@@ -243,25 +228,40 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
           </button>
         </div>
 
-        {/* The Circular Color Wheel & Vertical Lightness Slider (Matches User Reference Image) */}
+        {/* The Circular Color Wheel & Vertical Lightness Slider (Pure CSS, 100% Reliable!) */}
         <div className="flex items-center justify-center gap-5 my-6">
-          {/* Circular Wheel Canvas */}
+          {/* Circular Wheel (CSS Conic + Radial Gradient - Never Blank or Broken!) */}
           <div
-            className="relative w-[200px] h-[200px] rounded-full cursor-crosshair shadow-2xl flex-shrink-0"
+            ref={wheelContainerRef}
+            className="relative w-[210px] h-[210px] rounded-full cursor-crosshair shadow-2xl flex-shrink-0 border-2 border-white/20 select-none overflow-hidden"
+            style={{
+              background: `
+                radial-gradient(circle closest-side, #ffffff 0%, rgba(255,255,255,0) 100%),
+                conic-gradient(from 90deg, 
+                  #ff0000 0deg, 
+                  #ffff00 60deg, 
+                  #00ff00 120deg, 
+                  #00ffff 180deg, 
+                  #0000ff 240deg, 
+                  #ff00ff 300deg, 
+                  #ff0000 360deg
+                )
+              `,
+            }}
             onMouseDown={(e) => {
               isDraggingWheel.current = true;
               handleWheelMove(e.clientX, e.clientY);
             }}
+            onTouchStart={(e) => {
+              if (e.touches.length > 0) {
+                isDraggingWheel.current = true;
+                handleWheelMove(e.touches[0].clientX, e.touches[0].clientY);
+              }
+            }}
           >
-            <canvas
-              ref={canvasRef}
-              width={200}
-              height={200}
-              className="w-full h-full rounded-full"
-            />
             {/* Color Wheel Selector Handle Thumb (White Ring) */}
             <div
-              className="absolute w-4 h-4 rounded-full border-2 border-white shadow-[0_0_6px_rgba(0,0,0,0.8)] -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-75"
+              className="absolute w-5 h-5 rounded-full border-2 border-white shadow-[0_0_8px_rgba(0,0,0,0.9)] -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-75"
               style={{
                 left: `${thumbX}px`,
                 top: `${thumbY}px`,
@@ -272,25 +272,25 @@ export const ColorWheelModal: React.FC<ColorWheelModalProps> = ({
 
           {/* Vertical Lightness / Brightness Slider */}
           <div
-            className="relative w-5 h-[200px] rounded-full cursor-pointer overflow-hidden border border-white/20 shadow-lg flex-shrink-0"
+            ref={sliderRef}
+            className="relative w-6 h-[210px] rounded-full cursor-pointer border-2 border-white/20 shadow-lg flex-shrink-0 select-none overflow-hidden"
             style={{
               background: `linear-gradient(to bottom, #ffffff 0%, hsl(${hue}, ${saturation * 100}%, 50%) 50%, #000000 100%)`,
             }}
             onMouseDown={(e) => {
               isDraggingSlider.current = true;
-              const rect = e.currentTarget.getBoundingClientRect();
-              handleSliderMove(e.clientY, rect);
+              handleSliderMove(e.clientY);
             }}
-            onMouseMove={(e) => {
-              if (isDraggingSlider.current) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                handleSliderMove(e.clientY, rect);
+            onTouchStart={(e) => {
+              if (e.touches.length > 0) {
+                isDraggingSlider.current = true;
+                handleSliderMove(e.touches[0].clientY);
               }
             }}
           >
             {/* Slider Handle Thumb */}
             <div
-              className="absolute left-0 right-0 h-3 border-2 border-white rounded-full bg-white shadow-md pointer-events-none -translate-y-1/2"
+              className="absolute left-0 right-0 h-4 border-2 border-white rounded-full bg-white shadow-[0_0_8px_rgba(0,0,0,0.8)] pointer-events-none -translate-y-1/2"
               style={{ top: `${(1 - lightness) * 100}%` }}
             />
           </div>
