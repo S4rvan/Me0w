@@ -29,6 +29,7 @@ import {
   getStoredSpotifyToken,
   fetchCurrentlyPlaying,
   handleSpotifyCallback,
+  fetchTrackBeats,
 } from './services/spotifyService';
 
 import { ThreadLyricsDisplay } from './components/ThreadLyricsDisplay';
@@ -74,6 +75,18 @@ export const App: React.FC = () => {
   const [duration, setDuration] = useState(180);
   const [volume, setVolume] = useState(0.85);
   const [syncOffset, setSyncOffset] = useState(0);
+
+  // AI Word-Level Sync Engine Toggle (persisted)
+  const [aiSyncEnabled, setAiSyncEnabledState] = useState<boolean>(() => {
+    return localStorage.getItem('me0w_ai_sync') !== 'false';
+  });
+  const [trackBeats, setTrackBeats] = useState<number[]>([]);
+  const rawLrcCacheRef = useRef<string>('');
+
+  const setAiSyncEnabled = (enabled: boolean) => {
+    setAiSyncEnabledState(enabled);
+    localStorage.setItem('me0w_ai_sync', String(enabled));
+  };
 
   // Appearance: Pure Black Screen + Soft String Lights
   const [theme, setTheme] = useState<VisualTheme>('constellation');
@@ -167,12 +180,24 @@ export const App: React.FC = () => {
     }
   }, [currentTrack?.artworkUrl]);
 
-  // Load lyrics whenever current track changes
+  // Load beats from Spotify Audio Analysis if available
+  useEffect(() => {
+    if (isSpotifyActive && spotifyToken && currentTrack?.id && currentTrack.source === 'spotify') {
+      fetchTrackBeats(spotifyToken, currentTrack.id).then((b) => {
+        setTrackBeats(b);
+      });
+    } else {
+      setTrackBeats([]);
+    }
+  }, [currentTrack?.id, isSpotifyActive, spotifyToken]);
+
+  // Load lyrics whenever current track changes or AI sync option is toggled
   useEffect(() => {
     if (!currentTrack) return;
 
     if (currentTrack.rawLrc) {
-      setLyrics(parseLRC(currentTrack.rawLrc));
+      rawLrcCacheRef.current = currentTrack.rawLrc;
+      setLyrics(parseLRC(currentTrack.rawLrc, { useAiSync: aiSyncEnabled, beats: trackBeats }));
       return;
     }
 
@@ -180,8 +205,10 @@ export const App: React.FC = () => {
     fetchLyrics(currentTrack.title, currentTrack.artist, currentTrack.duration)
       .then((lrcString) => {
         if (lrcString) {
-          setLyrics(parseLRC(lrcString));
+          rawLrcCacheRef.current = lrcString;
+          setLyrics(parseLRC(lrcString, { useAiSync: aiSyncEnabled, beats: trackBeats }));
         } else {
+          rawLrcCacheRef.current = '';
           setLyrics([]);
         }
       })
@@ -192,7 +219,7 @@ export const App: React.FC = () => {
       .finally(() => {
         setIsLoadingLyrics(false);
       });
-  }, [currentTrack?.title, currentTrack?.artist]);
+  }, [currentTrack?.title, currentTrack?.artist, aiSyncEnabled, trackBeats]);
 
   // 60 FPS Animation Loop (Stable Clock, Zero Re-creations)
   useEffect(() => {
@@ -901,6 +928,8 @@ export const App: React.FC = () => {
         setSyncOffset={setSyncOffset}
         appName={appName}
         setAppName={setAppName}
+        aiSyncEnabled={aiSyncEnabled}
+        setAiSyncEnabled={setAiSyncEnabled}
       />
 
       <WindowsAppModal

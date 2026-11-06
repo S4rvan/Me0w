@@ -20,6 +20,8 @@ interface SettingsModalProps {
   setSyncOffset: (v: number) => void;
   appName: string;
   setAppName: (name: string) => void;
+  aiSyncEnabled: boolean;
+  setAiSyncEnabled: (v: boolean) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -40,6 +42,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   setSyncOffset,
   appName,
   setAppName,
+  aiSyncEnabled,
+  setAiSyncEnabled,
 }) => {
   if (!isOpen) return null;
 
@@ -234,6 +238,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${wakeLockActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/40'}`}>
                 {wakeLockActive ? 'Active' : 'Standby'}
               </span>
+            </div>
+          </div>
+
+          {/* AI Word-Level Sync Engine Toggle */}
+          <div className="pt-2 border-t border-white/10">
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-pink-500/10 via-rose-500/10 to-amber-500/10 border border-pink-500/20">
+              <div className="flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-pink-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-white">AI Word Sync Engine</p>
+                    <span className="text-[10px] uppercase font-mono font-bold px-1.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                      Neural
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/60 mt-0.5">
+                    Aligns every word to musical beats, vocal phonemes, and sustained melodies
+                  </p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer ml-3 flex-shrink-0">
+                <input
+                  type="checkbox"
+                  checked={aiSyncEnabled}
+                  onChange={(e) => setAiSyncEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
+              </label>
             </div>
           </div>
 

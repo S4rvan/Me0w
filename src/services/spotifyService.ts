@@ -178,3 +178,29 @@ export async function fetchCurrentlyPlaying(token: string): Promise<SpotifyPlayb
     return null;
   }
 }
+
+const analysisCache = new Map<string, number[]>();
+
+export async function fetchTrackBeats(token: string, trackId: string): Promise<number[]> {
+  if (!trackId || !token) return [];
+  if (analysisCache.has(trackId)) {
+    return analysisCache.get(trackId) || [];
+  }
+
+  try {
+    const res = await fetch(`https://api.spotify.com/v1/audio-analysis/${trackId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data && Array.isArray(data.beats)) {
+      const beatTimes = data.beats.map((b: any) => b.start as number);
+      analysisCache.set(trackId, beatTimes);
+      return beatTimes;
+    }
+  } catch (err) {
+    console.warn('Audio analysis fetch error:', err);
+  }
+
+  return [];
+}

@@ -1,11 +1,18 @@
 import { LyricLine, Word } from '../types';
+import { alignWordsWithAI } from './aiAligner';
 
 const TIME_REGEX = /\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g;
 const WORD_TIME_REGEX = /<(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?>/g;
 const SECONDS_PER_CHAR = 0.085; // Natural singing rate
 
-export function parseLRC(lrc: string): LyricLine[] {
+export function parseLRC(
+  lrc: string,
+  options?: { useAiSync?: boolean; beats?: number[] }
+): LyricLine[] {
   if (!lrc || typeof lrc !== 'string') return [];
+
+  const useAi = options?.useAiSync !== false;
+  const beats = options?.beats;
 
   const rawLines = lrc.split('\n');
   const timedItems: { time: number; text: string; raw: string }[] = [];
@@ -58,7 +65,7 @@ export function parseLRC(lrc: string): LyricLine[] {
     const nextTime = i + 1 < timedItems.length ? timedItems[i + 1].time : startTime + 5.5;
 
     // Check if line contains per-word tags like <mm:ss.xx>
-    const words = parseOrInterpolateWords(current.text, current.raw, startTime, nextTime);
+    const words = parseOrInterpolateWords(current.text, current.raw, startTime, nextTime, useAi, beats);
 
     result.push({
       id: i,
@@ -76,7 +83,9 @@ function parseOrInterpolateWords(
   cleanText: string,
   rawWithWordTags: string,
   lineStart: number,
-  lineEnd: number
+  lineEnd: number,
+  useAi: boolean = true,
+  beats?: number[]
 ): Word[] {
   // Try parsing embedded word tags if available: e.g. "word <00:12.34> next <00:13.00>"
   if (WORD_TIME_REGEX.test(rawWithWordTags)) {
@@ -117,74 +126,19 @@ function parseOrInterpolateWords(
     if (words.length > 0) return words;
   }
 
-  // Fallback: high-precision musical flow distribution (vocal cadence + held notes)
   const parts = cleanText.split(/\s+/).filter(Boolean);
   if (parts.length === 0) return [];
 
-  const rawSpan = Math.max(0.6, lineEnd - lineStart);
-
-  // In vocal delivery:
-  // - Rapid successive lines (under 2s): vocal occupies 92-95% of the span
-  // - Standard lines (2s to 6s): vocal occupies 86-90% of the span, leaving a natural 0.35s-0.5s breath before next line
-  // - Extended breaks / bridge (> 6s): line is sung across 3.5s to 6.5s depending on word count, leaving remainder for instrumental
-  let vocalSpan: number;
-  if (rawSpan <= 2.0) {
-    vocalSpan = rawSpan * 0.94;
-  } else if (rawSpan <= 6.0) {
-    vocalSpan = Math.max(1.5, rawSpan - 0.42);
-  } else {
-    const expectedTime = Math.max(2.8, parts.length * 0.48);
-    vocalSpan = Math.min(rawSpan - 1.2, expectedTime);
+  if (useAi) {
+    return alignWordsWithAI(parts, lineStart, lineEnd, beats);
   }
 
-  // Compute musical weights:
-  // - Chorus vocalizations ("ooh", "aah", "yeah", "baby", "woah", etc.) get extended duration (held notes)
-  // - Short particles ("a", "the", "in", "to", "on", "at") get lower duration
-  // - Last word of a phrase is almost always sustained in singing -> 1.55x bonus
-  const VOCALIZATION_REGEX = /^(o+h+|a+h+|yea+h*|wo+a*h*|la+|na+|mmm+|ba+by|he+y|ai+ght|ya+y)/i;
-  const PARTICLE_REGEX = /^(a|the|in|on|at|to|of|by|for|is|it|as|if|and|or|so)$/i;
-
-  const weights = parts.map((w, idx) => {
-    const clean = w.replace(/[^a-zA-Z]/g, '').toLowerCase();
-    let weight = 2.0;
-
-    if (VOCALIZATION_REGEX.test(clean)) {
-      weight = Math.max(4.0, clean.length * 1.5);
-    } else if (PARTICLE_REGEX.test(clean)) {
-      weight = 1.1;
-    } else {
-      weight = Math.max(1.8, Math.min(6.0, clean.length * 0.85 + 1.2));
-    }
-
-    if (/[,;—–-]$/.test(w)) {
-      weight += 0.8;
-    }
-
-    if (idx === parts.length - 1) {
-      weight *= 1.55;
-    }
-
-    return weight;
-  });
-
-  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-
-  let cursor = lineStart;
-  const words: Word[] = [];
-
-  for (let i = 0; i < parts.length; i++) {
-    const word = parts[i];
-    const fraction = weights[i] / totalWeight;
-    const duration = vocalSpan * fraction;
-
-    words.push({
-      text: word,
-      start: cursor,
-      end: cursor + duration,
-    });
-
-    cursor += duration;
-  }
-
-  return words;
+  // Linear fallback when AI sync is disabled
+  const span = Math.max(0.6, (lineEnd - lineStart) * 0.88);
+  const durPerWord = span / parts.length;
+  return parts.map((w, idx) => ({
+    text: w,
+    start: lineStart + idx * durPerWord,
+    end: lineStart + (idx + 1) * durPerWord,
+  }));
 }
