@@ -117,37 +117,54 @@ function parseOrInterpolateWords(
     if (words.length > 0) return words;
   }
 
-  // Fallback: musical flow time distribution (follows vocal phrasing and chorus melismas)
+  // Fallback: high-precision musical flow distribution (vocal cadence + held notes)
   const parts = cleanText.split(/\s+/).filter(Boolean);
   if (parts.length === 0) return [];
 
-  const totalChars = parts.reduce((sum, p) => sum + p.length, 0);
-  const rawSpan = Math.max(0.8, lineEnd - lineStart);
+  const rawSpan = Math.max(0.6, lineEnd - lineStart);
 
-  // Natural vocal phrasing: in songs, a vocal line is delivered in the first ~70-80% of the bar,
-  // leaving natural musical breathing room before the next lyric line begins.
-  const estimatedVocalTime = totalChars * 0.11 + 0.35;
-  const vocalSpan = rawSpan > 6.0
-    ? Math.min(rawSpan - 1.2, Math.max(3.0, rawSpan * 0.55))
-    : Math.min(Math.max(0.8, rawSpan * 0.78), Math.max(1.2, estimatedVocalTime));
+  // In vocal delivery:
+  // - Rapid successive lines (under 2s): vocal occupies 92-95% of the span
+  // - Standard lines (2s to 6s): vocal occupies 86-90% of the span, leaving a natural 0.35s-0.5s breath before next line
+  // - Extended breaks / bridge (> 6s): line is sung across 3.5s to 6.5s depending on word count, leaving remainder for instrumental
+  let vocalSpan: number;
+  if (rawSpan <= 2.0) {
+    vocalSpan = rawSpan * 0.94;
+  } else if (rawSpan <= 6.0) {
+    vocalSpan = Math.max(1.5, rawSpan - 0.42);
+  } else {
+    const expectedTime = Math.max(2.8, parts.length * 0.48);
+    vocalSpan = Math.min(rawSpan - 1.2, expectedTime);
+  }
 
   // Compute musical weights:
-  // Chorus vocalizations ("ooh", "aah", "yeah", "baby", "woah", etc.) are held notes and get extended duration
-  // Short particles ("the", "a", "in", "to") are quick
+  // - Chorus vocalizations ("ooh", "aah", "yeah", "baby", "woah", etc.) get extended duration (held notes)
+  // - Short particles ("a", "the", "in", "to", "on", "at") get lower duration
+  // - Last word of a phrase is almost always sustained in singing -> 1.55x bonus
   const VOCALIZATION_REGEX = /^(o+h+|a+h+|yea+h*|wo+a*h*|la+|na+|mmm+|ba+by|he+y|ai+ght|ya+y)/i;
-  const PARTICLE_REGEX = /^(a|the|in|on|at|to|of|by|for|is|it|as|if)$/i;
+  const PARTICLE_REGEX = /^(a|the|in|on|at|to|of|by|for|is|it|as|if|and|or|so)$/i;
 
-  const weights = parts.map((w) => {
+  const weights = parts.map((w, idx) => {
     const clean = w.replace(/[^a-zA-Z]/g, '').toLowerCase();
+    let weight = 2.0;
+
     if (VOCALIZATION_REGEX.test(clean)) {
-      // Sustained chorus melisma: 4.5x weight
-      return Math.max(4.5, clean.length * 1.8);
+      weight = Math.max(4.0, clean.length * 1.5);
+    } else if (PARTICLE_REGEX.test(clean)) {
+      weight = 1.1;
+    } else {
+      weight = Math.max(1.8, Math.min(6.0, clean.length * 0.85 + 1.2));
     }
-    if (PARTICLE_REGEX.test(clean)) {
-      return 1.2;
+
+    if (/[,;—–-]$/.test(w)) {
+      weight += 0.8;
     }
-    // Standard words: proportional to syllable/character length with base floor
-    return Math.max(2.2, clean.length);
+
+    if (idx === parts.length - 1) {
+      weight *= 1.55;
+    }
+
+    return weight;
   });
 
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);

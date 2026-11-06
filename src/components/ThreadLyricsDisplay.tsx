@@ -353,14 +353,12 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
           const star = phrase.stars[i];
           const nextStar = phrase.stars[i + 1];
 
-          // 0.1s anticipation for crisp, zero-latency lyric synchronization
-          if (currentTime >= star.start - 0.1) {
+          // Seamless word transition matching vocal flow
+          if (currentTime >= star.start - 0.06) {
             spawnedStars.push(star);
 
-            // Stays active and prominent following the vocal flow until the next star begins,
-            // or through the phrase duration if it's the final word
-            const singingUntil = nextStar ? nextStar.start - 0.05 : Math.max(star.end, phrase.end);
-            if (currentTime >= star.start - 0.1 && currentTime <= singingUntil) {
+            const singingUntil = nextStar ? nextStar.start : Math.max(star.end, phrase.end);
+            if (currentTime >= star.start - 0.06 && currentTime <= singingUntil) {
               activeStar = star;
             }
           }

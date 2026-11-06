@@ -32,6 +32,7 @@ import {
 } from './services/spotifyService';
 
 import { ThreadLyricsDisplay } from './components/ThreadLyricsDisplay';
+import { LyricsDisplay } from './components/LyricsDisplay';
 import { StringLights } from './components/StringLights';
 import { EdgeLights } from './components/EdgeLights';
 import { RetroTurntable } from './components/RetroTurntable';
@@ -75,7 +76,7 @@ export const App: React.FC = () => {
   const [syncOffset, setSyncOffset] = useState(0);
 
   // Appearance: Pure Black Screen + Soft String Lights
-  const [theme, setTheme] = useState<VisualTheme>('classic');
+  const [theme, setTheme] = useState<VisualTheme>('constellation');
   const [fontSize, setFontSize] = useState<FontSizeSetting>('medium');
   const [palette, setPalette] = useState<ColorPalette>(DEFAULT_PALETTE);
   const [stringLightsEnabled, setStringLightsEnabled] = useState(true);
@@ -116,6 +117,11 @@ export const App: React.FC = () => {
   const consecutiveNullsRef = useRef<number>(0);
   const currentTrackRef = useRef<Track | null>(null);
   const durationRef = useRef<number>(180);
+  const spotifySyncRef = useRef<{
+    anchorPosition: number;
+    anchorPerfTime: number;
+    isPlaying: boolean;
+  }>({ anchorPosition: 0, anchorPerfTime: performance.now(), isPlaying: false });
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
@@ -197,27 +203,31 @@ export const App: React.FC = () => {
       lastFrameTimeRef.current = now;
 
       if (isPlaying) {
-        const audio = audioRef.current;
-        if (audio && !audio.paused && !isSpotifyActive) {
-          // Continuous 60fps high-precision clock synced with HTML5 audio
-          setCurrentTime((prev) => {
-            const target = audio.currentTime;
-            const diff = target - prev;
-            if (Math.abs(diff) > 0.35) {
-              return target;
-            }
-            return prev + delta + diff * 0.1;
-          });
+        if (isSpotifyActive) {
+          // Continuous 60fps high-resolution interpolation synced with Spotify
+          const sync = spotifySyncRef.current;
+          if (sync.isPlaying) {
+            const elapsed = (now - sync.anchorPerfTime) / 1000;
+            const target = sync.anchorPosition + elapsed;
+            setCurrentTime(target);
+          }
         } else {
-          // Continuous 60fps virtual timer / Spotify progress interpolation
-          setCurrentTime((prev) => {
-            const maxDur = durationRef.current;
-            if (maxDur > 0 && prev >= maxDur && !isSpotifyActive) {
-              setIsPlaying(false);
-              return maxDur;
-            }
-            return prev + delta;
-          });
+          const audio = audioRef.current;
+          if (audio && !audio.paused) {
+            // HTML5 audio playback (demo tracks, local files, preview tracks)
+            // audio.currentTime is 100% ground truth of speaker output with zero latency!
+            setCurrentTime(audio.currentTime);
+          } else {
+            // Virtual timer fallback
+            setCurrentTime((prev) => {
+              const maxDur = durationRef.current;
+              if (maxDur > 0 && prev >= maxDur) {
+                setIsPlaying(false);
+                return maxDur;
+              }
+              return prev + delta;
+            });
+          }
         }
       }
 
@@ -290,7 +300,11 @@ export const App: React.FC = () => {
 
     const pollSpotify = async () => {
       try {
+        const fetchStart = performance.now();
         const state = await fetchCurrentlyPlaying(spotifyToken);
+        const fetchEnd = performance.now();
+        const networkOneWaySec = Math.max(0, (fetchEnd - fetchStart) / 2000);
+
         if (state) {
           consecutiveNullsRef.current = 0;
           setIsSpotifyActive(true);
@@ -298,22 +312,44 @@ export const App: React.FC = () => {
           if (!state.isPlaying) {
             // Explicit pause reported by Spotify app on phone
             setIsPlaying(false);
+            spotifySyncRef.current = {
+              anchorPosition: state.progressMs / 1000,
+              anchorPerfTime: fetchEnd,
+              isPlaying: false,
+            };
             setCurrentTime(state.progressMs / 1000);
             if (audioRef.current && !audioRef.current.paused) {
               audioRef.current.pause();
             }
           } else {
-            // Actively playing
+            // Actively playing on Spotify
             setIsPlaying(true);
-            const serverTime = state.progressMs / 1000;
+            const realPos = (state.progressMs / 1000) + networkOneWaySec;
 
-            // Reconcile time only on significant drift (> 1.2s) to prevent jitter
-            setCurrentTime((prev) => {
-              if (Math.abs(prev - serverTime) > 1.2) {
-                return serverTime;
-              }
-              return prev;
-            });
+            const currentAnchor = spotifySyncRef.current;
+            const currentEstTime = currentAnchor.isPlaying
+              ? currentAnchor.anchorPosition + (fetchEnd - currentAnchor.anchorPerfTime) / 1000
+              : realPos;
+
+            const drift = realPos - currentEstTime;
+
+            // If track changed or large seek (> 1.2s), snap immediately
+            if (Math.abs(drift) > 1.2 || !currentAnchor.isPlaying) {
+              spotifySyncRef.current = {
+                anchorPosition: realPos,
+                anchorPerfTime: fetchEnd,
+                isPlaying: true,
+              };
+              setCurrentTime(realPos);
+            } else {
+              // Smooth micro-convergence: gently nudge anchor by 40% of small drift (< 1.2s)
+              // to eliminate timer drift over time without any visible jump!
+              spotifySyncRef.current = {
+                anchorPosition: currentEstTime + drift * 0.4,
+                anchorPerfTime: fetchEnd,
+                isPlaying: true,
+              };
+            }
 
             // Ensure preview audio is silenced while Spotify plays
             if (audioRef.current && !audioRef.current.paused) {
@@ -349,6 +385,7 @@ export const App: React.FC = () => {
           if (consecutiveNullsRef.current >= 3) {
             setIsPlaying(false);
             setIsSpotifyActive(false);
+            spotifySyncRef.current.isPlaying = false;
             if (audioRef.current && !audioRef.current.paused) {
               audioRef.current.pause();
             }
@@ -446,6 +483,14 @@ export const App: React.FC = () => {
     // 1. Instantly update UI (turntable stops/starts, tonearm moves with 0ms delay)
     setIsPlaying(nextPlayState);
 
+    if (isSpotifyActive) {
+      spotifySyncRef.current = {
+        anchorPosition: currentTime,
+        anchorPerfTime: performance.now(),
+        isPlaying: nextPlayState,
+      };
+    }
+
     // 2. Control HTML5 audio element
     const audio = audioRef.current;
     if (audio) {
@@ -485,6 +530,11 @@ export const App: React.FC = () => {
     }
 
     if (isSpotifyActive && spotifyToken) {
+      spotifySyncRef.current = {
+        anchorPosition: time,
+        anchorPerfTime: performance.now(),
+        isPlaying,
+      };
       fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${Math.round(time * 1000)}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${spotifyToken}` },
@@ -706,22 +756,38 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Vision Viewport: Black Water Surface + TV Girl Pastel Words on Silk Thread */}
+      {/* Main Vision Viewport: Star Constellations & Silk Thread OR Full Synced Karaoke Lyrics */}
       <main className="relative flex-1 w-full h-full z-10 overflow-hidden bg-black">
-        <ThreadLyricsDisplay
-          lines={lyrics}
-          currentTime={effectiveTime}
-          onSeek={handleSeek}
-          fontSize={fontSize}
-          isLoadingLyrics={isLoadingLyrics}
-          hasLyrics={lyrics.length > 0}
-          trackTitle={currentTrack?.title}
-          trackArtist={currentTrack?.artist}
-          onOpenSearch={() => setIsSearchOpen(true)}
-          onSpawnRipple={handleSpawnRipple}
-          isInstrumental={isInstrumental}
-          setIsInstrumental={setIsInstrumental}
-        />
+        {theme === 'constellation' ? (
+          <ThreadLyricsDisplay
+            lines={lyrics}
+            currentTime={effectiveTime}
+            onSeek={handleSeek}
+            fontSize={fontSize}
+            isLoadingLyrics={isLoadingLyrics}
+            hasLyrics={lyrics.length > 0}
+            trackTitle={currentTrack?.title}
+            trackArtist={currentTrack?.artist}
+            onOpenSearch={() => setIsSearchOpen(true)}
+            onSpawnRipple={handleSpawnRipple}
+            isInstrumental={isInstrumental}
+            setIsInstrumental={setIsInstrumental}
+          />
+        ) : (
+          <LyricsDisplay
+            lines={lyrics}
+            currentTime={effectiveTime}
+            onSeek={handleSeek}
+            theme={theme}
+            fontSize={fontSize}
+            palette={palette}
+            isLoadingLyrics={isLoadingLyrics}
+            hasLyrics={lyrics.length > 0}
+            trackTitle={currentTrack?.title}
+            trackArtist={currentTrack?.artist}
+            onOpenSearch={() => setIsSearchOpen(true)}
+          />
+        )}
       </main>
 
       {/* Retro Illustrated Turntable Deck (Matches User's Sketch) */}

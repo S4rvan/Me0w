@@ -52,8 +52,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   ];
 
   const themes: { id: VisualTheme; name: string; desc: string }[] = [
+    { id: 'constellation', name: 'Star Constellations', desc: 'TV Girl pastel words on silk thread star map' },
+    { id: 'classic', name: 'Me0w Classic', desc: 'Pitch black OLED background with pure white word focus' },
     { id: 'aurora', name: 'Ambient Aurora', desc: 'Fluid blurred gradients sampled from album art' },
-    { id: 'classic', name: 'Verci Classic', desc: 'Pitch black OLED background with pure white word focus' },
     { id: 'fisheye', name: 'Fisheye Lens', desc: 'Dramatic dynamic depth scale between lines' },
     { id: 'cyberpunk', name: 'Neon Cyberpunk', desc: 'High-contrast cyan and magenta laser glow' },
     { id: 'minimal', name: 'Minimalist', desc: 'Clean Swiss typography without distractions' },

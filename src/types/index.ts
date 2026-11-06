@@ -25,7 +25,7 @@ export interface Track {
   audioOffset?: number; // offset if preview doesn't start at 0:00
 }
 
-export type VisualTheme = 'classic' | 'aurora' | 'fisheye' | 'cyberpunk' | 'minimal';
+export type VisualTheme = 'constellation' | 'classic' | 'aurora' | 'fisheye' | 'cyberpunk' | 'minimal';
 export type FontSizeSetting = 'small' | 'medium' | 'large' | 'huge';
 export type EdgeLightMode = 'ambilight' | 'neon' | 'pulse' | 'subtle' | 'off';
 
