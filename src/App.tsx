@@ -24,7 +24,7 @@ import { parseLRC } from './utils/lyricsParser';
 import { extractPaletteFromImage } from './utils/colorExtractor';
 import { requestWakeLock, releaseWakeLock } from './utils/wakeLock';
 import { fetchLyrics } from './services/lyricsService';
-import { DEMO_TRACKS, searchTracks } from './services/musicService';
+import { DEMO_TRACKS, searchTracks, resolveYouTubeVideoId } from './services/musicService';
 import {
   getStoredSpotifyToken,
   fetchCurrentlyPlaying,
@@ -34,6 +34,7 @@ import {
 
 import { ThreadLyricsDisplay } from './components/ThreadLyricsDisplay';
 import { LyricsDisplay } from './components/LyricsDisplay';
+import { YouTubeAudioPlayer, YouTubePlayerHandle } from './components/YouTubeAudioPlayer';
 import { StringLights } from './components/StringLights';
 import { EdgeLights } from './components/EdgeLights';
 import { RetroTurntable } from './components/RetroTurntable';
@@ -123,6 +124,7 @@ export const App: React.FC = () => {
 
   // Audio element reference & 60fps frame loop
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ytPlayerRef = useRef<YouTubePlayerHandle | null>(null);
   const idleTimeoutRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(performance.now());
   const rafIdRef = useRef<number | null>(null);
@@ -238,6 +240,12 @@ export const App: React.FC = () => {
             const target = sync.anchorPosition + elapsed;
             setCurrentTime(target);
           }
+        } else if (currentTrack?.source === 'youtube' && ytPlayerRef.current) {
+          // Continuous 60fps high-precision clock synced with Full-length YouTube Audio
+          const ytTime = ytPlayerRef.current.getCurrentTime();
+          if (typeof ytTime === 'number' && !isNaN(ytTime) && ytTime > 0) {
+            setCurrentTime(ytTime);
+          }
         } else {
           const audio = audioRef.current;
           if (audio && !audio.paused) {
@@ -311,10 +319,13 @@ export const App: React.FC = () => {
     };
   }, [isFullscreen, isSpotifyActive]);
 
-  // Sync volume with audio element
+  // Sync volume with audio element & YouTube player
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
+    }
+    if (ytPlayerRef.current) {
+      ytPlayerRef.current.setVolume(volume);
     }
   }, [volume]);
 
@@ -440,7 +451,32 @@ export const App: React.FC = () => {
     setSyncOffset(0);
     setDuration(track.duration || 180);
 
-    if (audioRef.current && track.previewUrl) {
+    // If Spotify is not active, stream full track via YouTube audio engine
+    if (!isSpotifyActive && track.source !== 'local') {
+      if (track.youtubeVideoId) {
+        if (autoPlay) setIsPlaying(true);
+      } else {
+        // Resolve full YouTube audio stream in background
+        resolveYouTubeVideoId(track.title, track.artist).then((videoId) => {
+          if (videoId) {
+            setCurrentTrack((prev) =>
+              prev?.id === track.id
+                ? { ...prev, youtubeVideoId: videoId, source: 'youtube' }
+                : prev
+            );
+            if (autoPlay) setIsPlaying(true);
+          } else if (audioRef.current && track.previewUrl) {
+            // Fallback to preview audio if YouTube is unavailable
+            audioRef.current.src = track.previewUrl;
+            audioRef.current.load();
+            if (autoPlay) audioRef.current.play().catch(() => setIsPlaying(false));
+          }
+        });
+        return;
+      }
+    }
+
+    if (audioRef.current && track.previewUrl && track.source === 'local') {
       audioRef.current.src = track.previewUrl;
       audioRef.current.load();
       if (autoPlay) {
@@ -516,6 +552,12 @@ export const App: React.FC = () => {
         anchorPerfTime: performance.now(),
         isPlaying: nextPlayState,
       };
+    } else if (currentTrack?.source === 'youtube' && ytPlayerRef.current) {
+      if (nextPlayState) {
+        ytPlayerRef.current.play();
+      } else {
+        ytPlayerRef.current.pause();
+      }
     }
 
     // 2. Control HTML5 audio element
@@ -523,7 +565,7 @@ export const App: React.FC = () => {
     if (audio) {
       if (!nextPlayState) {
         audio.pause();
-      } else if (!isSpotifyActive && currentTrack?.previewUrl) {
+      } else if (!isSpotifyActive && currentTrack?.previewUrl && currentTrack?.source !== 'youtube') {
         audio
           .play()
           .then(() => setIsPlaying(true))
@@ -552,8 +594,12 @@ export const App: React.FC = () => {
   // Seek playback
   const handleSeek = (time: number) => {
     setCurrentTime(time);
-    if (audioRef.current && !isSpotifyActive && currentTrack?.previewUrl) {
-      audioRef.current.currentTime = time;
+    if (!isSpotifyActive) {
+      if (currentTrack?.source === 'youtube' && ytPlayerRef.current) {
+        ytPlayerRef.current.seekTo(time);
+      } else if (audioRef.current && currentTrack?.previewUrl) {
+        audioRef.current.currentTime = time;
+      }
     }
 
     if (isSpotifyActive && spotifyToken) {
@@ -659,6 +705,20 @@ export const App: React.FC = () => {
     >
       {/* Hidden Audio Element */}
       <audio ref={audioRef} preload="auto" />
+
+      {/* Full-Length YouTube Audio Player Engine (Direct In-App Music) */}
+      <YouTubeAudioPlayer
+        ref={ytPlayerRef}
+        videoId={currentTrack?.source === 'youtube' ? currentTrack.youtubeVideoId || null : null}
+        isPlaying={isPlaying && !isSpotifyActive && currentTrack?.source === 'youtube'}
+        volume={volume}
+        onDuration={(d) => {
+          if (d && d > 0) setDuration(d);
+        }}
+        onEnded={() => {
+          handleNextTrack();
+        }}
+      />
 
       {/* Interactive Water Surface: Ripples on Lyrics Spawn, Mouse Trail & Rain Drops */}
       <WaterSurface

@@ -82,7 +82,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                   activeTab === 'search' ? 'bg-white text-black' : 'text-white/60 hover:text-white'
                 }`}
               >
-                Search & Previews
+                Search & Stream (Full Songs)
               </button>
               <button
                 onClick={() => setActiveTab('local')}
@@ -111,7 +111,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search any song, artist or album (e.g. Starboy, Queen, Coldplay)..."
+                placeholder="Search any song to stream full music (e.g. Starboy, Bohemian Rhapsody, Flowers)..."
                 className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 pl-12 text-white placeholder-white/40 focus:outline-none focus:border-white/30 text-sm md:text-base"
                 autoFocus
               />
@@ -185,8 +185,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                           {track.artist} · {track.album}
                         </p>
                       </div>
-                      <span className="text-xs font-mono text-white/40 px-2 py-1 bg-white/5 rounded-lg">
-                        Preview
+                      <span className="text-xs font-mono text-pink-300 px-2 py-1 bg-pink-500/10 border border-pink-500/20 rounded-lg flex items-center gap-1 flex-shrink-0">
+                        <Sparkles className="w-3 h-3 text-pink-400" /> Full Song
                       </span>
                     </div>
                   ))}

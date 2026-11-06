@@ -20,7 +20,8 @@ export interface Track {
   duration: number; // seconds
   artworkUrl: string;
   previewUrl?: string; // audio url
-  source: 'preview' | 'spotify' | 'local' | 'demo' | 'virtual';
+  youtubeVideoId?: string;
+  source: 'preview' | 'spotify' | 'local' | 'demo' | 'virtual' | 'youtube';
   rawLrc?: string;
   audioOffset?: number; // offset if preview doesn't start at 0:00
 }
