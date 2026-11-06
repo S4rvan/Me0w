@@ -301,8 +301,7 @@ export const App: React.FC = () => {
 
     const onEnded = () => {
       if (!isSpotifyActive) {
-        setIsPlaying(false);
-        setCurrentTime(0);
+        handleNextTrack();
       }
     };
 
@@ -451,38 +450,20 @@ export const App: React.FC = () => {
     setSyncOffset(0);
     setDuration(track.duration || 180);
 
-    // If Spotify is not active, stream full track via YouTube audio engine
-    if (!isSpotifyActive && track.source !== 'local') {
-      if (track.youtubeVideoId) {
-        if (autoPlay) setIsPlaying(true);
-      } else {
-        // Resolve full YouTube audio stream in background
-        resolveYouTubeVideoId(track.title, track.artist).then((videoId) => {
-          if (videoId) {
-            setCurrentTrack((prev) =>
-              prev?.id === track.id
-                ? { ...prev, youtubeVideoId: videoId, source: 'youtube' }
-                : prev
-            );
-            if (autoPlay) setIsPlaying(true);
-          } else if (audioRef.current && track.previewUrl) {
-            // Fallback to preview audio if YouTube is unavailable
-            audioRef.current.src = track.previewUrl;
-            audioRef.current.load();
-            if (autoPlay) audioRef.current.play().catch(() => setIsPlaying(false));
-          }
-        });
-        return;
-      }
-    }
-
-    if (audioRef.current && track.previewUrl && track.source === 'local') {
-      audioRef.current.src = track.previewUrl;
-      audioRef.current.load();
-      if (autoPlay) {
-        audioRef.current.play().catch(() => {
-          setIsPlaying(false);
-        });
+    // Load direct audio stream into HTML5 audio element for instant speaker sound
+    const audio = audioRef.current;
+    if (audio && track.previewUrl) {
+      audio.src = track.previewUrl;
+      audio.volume = volume;
+      audio.load();
+      if (autoPlay && !isSpotifyActive) {
+        audio
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch((err) => {
+            console.warn('Audio play error (requires click gesture):', err);
+            setIsPlaying(false);
+          });
       }
     }
   };
@@ -560,17 +541,22 @@ export const App: React.FC = () => {
       }
     }
 
-    // 2. Control HTML5 audio element
+    // 2. Control HTML5 audio element (Direct speaker audio)
     const audio = audioRef.current;
-    if (audio) {
+    if (audio && !isSpotifyActive) {
       if (!nextPlayState) {
         audio.pause();
-      } else if (!isSpotifyActive && currentTrack?.previewUrl && currentTrack?.source !== 'youtube') {
+      } else if (currentTrack?.previewUrl) {
+        if (!audio.src || !audio.src.includes(currentTrack.previewUrl)) {
+          audio.src = currentTrack.previewUrl;
+          audio.load();
+        }
+        audio.volume = volume;
         audio
           .play()
           .then(() => setIsPlaying(true))
           .catch((err) => {
-            console.warn('Audio play error, falling back to visual timer:', err);
+            console.warn('Audio play error:', err);
             setIsPlaying(true);
           });
       }
@@ -595,10 +581,11 @@ export const App: React.FC = () => {
   const handleSeek = (time: number) => {
     setCurrentTime(time);
     if (!isSpotifyActive) {
+      if (audioRef.current && currentTrack?.previewUrl) {
+        audioRef.current.currentTime = time;
+      }
       if (currentTrack?.source === 'youtube' && ytPlayerRef.current) {
         ytPlayerRef.current.seekTo(time);
-      } else if (audioRef.current && currentTrack?.previewUrl) {
-        audioRef.current.currentTime = time;
       }
     }
 
