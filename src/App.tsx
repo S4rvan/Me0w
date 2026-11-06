@@ -113,6 +113,17 @@ export const App: React.FC = () => {
   const lastFrameTimeRef = useRef<number>(performance.now());
   const rafIdRef = useRef<number | null>(null);
   const spotifyPollIntervalRef = useRef<number | null>(null);
+  const consecutiveNullsRef = useRef<number>(0);
+  const currentTrackRef = useRef<Track | null>(null);
+  const durationRef = useRef<number>(180);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
+
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
 
   // Initial setup: check Spotify OAuth or URL search params
   useEffect(() => {
@@ -177,7 +188,7 @@ export const App: React.FC = () => {
       });
   }, [currentTrack?.title, currentTrack?.artist]);
 
-  // 60 FPS Animation Loop
+  // 60 FPS Animation Loop (Stable Clock, Zero Re-creations)
   useEffect(() => {
     lastFrameTimeRef.current = performance.now();
 
@@ -188,23 +199,22 @@ export const App: React.FC = () => {
       if (isPlaying) {
         const audio = audioRef.current;
         if (audio && !audio.paused && !isSpotifyActive) {
-          // Continuous 60fps high-precision clock (eliminates HTML5 audio 250ms step-stutter)
+          // Continuous 60fps high-precision clock synced with HTML5 audio
           setCurrentTime((prev) => {
             const target = audio.currentTime;
             const diff = target - prev;
-            // If user sought or audio jumped, snap immediately
             if (Math.abs(diff) > 0.35) {
               return target;
             }
-            // Otherwise advance smoothly by frame delta and gently reconcile minor audio clock drift
             return prev + delta + diff * 0.1;
           });
         } else {
-          // Virtual timer or Spotify progress interpolation
+          // Continuous 60fps virtual timer / Spotify progress interpolation
           setCurrentTime((prev) => {
-            if (duration > 0 && prev >= duration) {
+            const maxDur = durationRef.current;
+            if (maxDur > 0 && prev >= maxDur && !isSpotifyActive) {
               setIsPlaying(false);
-              return duration;
+              return maxDur;
             }
             return prev + delta;
           });
@@ -218,7 +228,7 @@ export const App: React.FC = () => {
     return () => {
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     };
-  }, [isPlaying, isSpotifyActive, duration]);
+  }, [isPlaying, isSpotifyActive]);
 
   // Audio element events
   useEffect(() => {
@@ -237,13 +247,18 @@ export const App: React.FC = () => {
     };
 
     const onPause = () => {
-      setIsPlaying(false);
+      // Only pause app if not currently playing Spotify
+      if (!isSpotifyActive) {
+        setIsPlaying(false);
+      }
       if (!isFullscreen) releaseWakeLock();
     };
 
     const onEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
+      if (!isSpotifyActive) {
+        setIsPlaying(false);
+        setCurrentTime(0);
+      }
     };
 
     audio.addEventListener('durationchange', onDurationChange);
@@ -257,7 +272,7 @@ export const App: React.FC = () => {
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [isFullscreen]);
+  }, [isFullscreen, isSpotifyActive]);
 
   // Sync volume with audio element
   useEffect(() => {
@@ -266,7 +281,7 @@ export const App: React.FC = () => {
     }
   }, [volume]);
 
-  // Spotify Polling Loop with Smooth Reconcile
+  // Spotify Polling Loop (Smooth Reconcile & Rate-Limit Safe)
   useEffect(() => {
     if (!spotifyToken) {
       setIsSpotifyActive(false);
@@ -277,25 +292,30 @@ export const App: React.FC = () => {
       try {
         const state = await fetchCurrentlyPlaying(spotifyToken);
         if (state) {
+          consecutiveNullsRef.current = 0;
           setIsSpotifyActive(true);
-          setIsPlaying(state.isPlaying);
-          const serverTime = state.progressMs / 1000;
 
-          // If Spotify is paused on phone, snap time to exact paused progress and ensure audio is paused
           if (!state.isPlaying) {
-            setCurrentTime(serverTime);
+            // Explicit pause reported by Spotify app on phone
+            setIsPlaying(false);
+            setCurrentTime(state.progressMs / 1000);
             if (audioRef.current && !audioRef.current.paused) {
               audioRef.current.pause();
             }
           } else {
-            // Reconcile time if drifting by more than 0.8s
+            // Actively playing
+            setIsPlaying(true);
+            const serverTime = state.progressMs / 1000;
+
+            // Reconcile time only on significant drift (> 1.2s) to prevent jitter
             setCurrentTime((prev) => {
-              if (Math.abs(prev - serverTime) > 0.8) {
+              if (Math.abs(prev - serverTime) > 1.2) {
                 return serverTime;
               }
               return prev;
             });
-            // Ensure any local preview audio is paused when Spotify is active
+
+            // Ensure preview audio is silenced while Spotify plays
             if (audioRef.current && !audioRef.current.paused) {
               audioRef.current.pause();
             }
@@ -318,10 +338,20 @@ export const App: React.FC = () => {
             });
           }
         } else {
-          // Playback stopped on phone, closed, or 204 No Content
-          setIsPlaying(false);
-          if (audioRef.current && !audioRef.current.paused) {
-            audioRef.current.pause();
+          // Spotify returned null (no active playback or temporary API hitch)
+          // NEVER stop if user is playing a demo song, local file, or searched song!
+          if (currentTrackRef.current?.source !== 'spotify') {
+            return;
+          }
+
+          // Require 3 consecutive nulls before marking Spotify stopped to prevent random hiccup stops
+          consecutiveNullsRef.current += 1;
+          if (consecutiveNullsRef.current >= 3) {
+            setIsPlaying(false);
+            setIsSpotifyActive(false);
+            if (audioRef.current && !audioRef.current.paused) {
+              audioRef.current.pause();
+            }
           }
         }
       } catch (err) {
@@ -330,7 +360,7 @@ export const App: React.FC = () => {
     };
 
     pollSpotify();
-    spotifyPollIntervalRef.current = window.setInterval(pollSpotify, 1000);
+    spotifyPollIntervalRef.current = window.setInterval(pollSpotify, 2000);
 
     return () => {
       if (spotifyPollIntervalRef.current) {
