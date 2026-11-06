@@ -1,4 +1,11 @@
 import { Track } from '../types';
+import {
+  STARBOY_LRC,
+  BOHEMIAN_RHAPSODY_LRC,
+  GOLDEN_HOUR_LRC,
+  FLOWERS_LRC,
+  AS_IT_WAS_LRC,
+} from './demoLyrics';
 
 export const DEMO_TRACKS: Track[] = [
   {
@@ -11,6 +18,7 @@ export const DEMO_TRACKS: Track[] = [
     previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/11/71/d6/1171d6ad-3c96-e027-2af6-58028426588c/mzaf_15137631797407745471.plus.aac.p.m4a',
     youtubeVideoId: 'Rif-RTvmmss',
     source: 'demo',
+    rawLrc: STARBOY_LRC,
   },
   {
     id: 'demo-bohemian',
@@ -22,6 +30,7 @@ export const DEMO_TRACKS: Track[] = [
     previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/64/79/1a/64791ad9-d2d4-bb36-c731-8e7d23a677bf/mzaf_10543666205797371583.plus.aac.p.m4a',
     youtubeVideoId: 'fJ9rUzIMcZQ',
     source: 'demo',
+    rawLrc: BOHEMIAN_RHAPSODY_LRC,
   },
   {
     id: 'demo-goldenhour',
@@ -33,6 +42,7 @@ export const DEMO_TRACKS: Track[] = [
     previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/c7/2b/71/c72b71be-0177-3e81-2292-9f93316bdf69/mzaf_6097874026607074558.plus.aac.p.m4a',
     youtubeVideoId: 'GZ3zL7kT6_c',
     source: 'demo',
+    rawLrc: GOLDEN_HOUR_LRC,
   },
   {
     id: 'demo-flowers',
@@ -44,6 +54,7 @@ export const DEMO_TRACKS: Track[] = [
     previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/e5/a0/0b/e5a00b09-b68c-dbec-c88f-a9db15c8c538/mzaf_12948719266100236113.plus.aac.p.m4a',
     youtubeVideoId: 'G7KNmW9a75Y',
     source: 'demo',
+    rawLrc: FLOWERS_LRC,
   },
   {
     id: 'demo-asitwas',
@@ -55,6 +66,7 @@ export const DEMO_TRACKS: Track[] = [
     previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/c3/97/8f/c3978f87-a226-c2ba-cf2a-5b128526ee8a/mzaf_16480579692477383783.plus.aac.p.m4a',
     youtubeVideoId: 'H5v3kku4y6Q',
     source: 'demo',
+    rawLrc: AS_IT_WAS_LRC,
   }
 ];
 

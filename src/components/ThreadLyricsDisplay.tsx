@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useRef } from 'react';
+import { Sparkles } from 'lucide-react';
 import { LyricLine, FontSizeSetting } from '../types';
 import { RippleEvent } from './WaterSurface';
 
@@ -383,13 +384,29 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
       }
     }
 
+    // If in instrumental intro before the first line starts, preview the upcoming first constellation
+    if (visible.length === 0 && constellations.length > 0 && currentTime < constellations[0].start - 0.25) {
+      const first = constellations[0];
+      visible.push({
+        phrase: first,
+        opacity: 0.72,
+        activeStar: null,
+        spawnedStars: first.stars,
+        drawnEdges: first.edges,
+      });
+    }
+
     return visible;
   }, [constellations, currentTime]);
 
+  const firstPhrase = constellations[0];
+  const isIntro = Boolean(firstPhrase && currentTime < firstPhrase.start - 0.25);
+  const introSecondsLeft = isIntro ? Math.max(1, Math.ceil(firstPhrase.start - currentTime)) : 0;
+
   // Update instrumental status
   useEffect(() => {
-    const isSilent = activeConstellations.length === 0;
-    setIsInstrumental(isSilent);
+    const isSinging = activeConstellations.some((c) => c.activeStar !== null);
+    setIsInstrumental(!isSinging);
   }, [activeConstellations, setIsInstrumental]);
 
   // 3. Trigger water surface ripple on active star ignition
@@ -575,7 +592,17 @@ export const ThreadLyricsDisplay: React.FC<ThreadLyricsDisplayProps> = ({
         ))}
       </div>
 
-      {/* 4. Astronomical Constellation Name Badge Positioned at Bottom-Right Corner */}
+      {/* 4. Instrumental Intro / Countdown HUD Badge */}
+      {isIntro && (
+        <div className="fixed top-20 sm:top-24 left-1/2 -translate-x-1/2 z-30 pointer-events-none select-none flex items-center gap-2.5 bg-black/75 backdrop-blur-xl px-5 py-2.5 rounded-full border border-pink-500/30 shadow-[0_0_30px_rgba(244,63,94,0.3)] animate-pulse">
+          <Sparkles className="w-4 h-4 text-pink-400 animate-spin" style={{ animationDuration: '6s' }} />
+          <span className="text-xs font-mono tracking-widest text-pink-200 font-bold uppercase">
+            Instrumental Intro · First verse in {introSecondsLeft}s
+          </span>
+        </div>
+      )}
+
+      {/* 5. Astronomical Constellation Name Badge Positioned at Bottom-Right Corner */}
       {activeConstellations.length > 0 && (
         <div
           className="fixed bottom-20 right-8 z-30 pointer-events-none select-none transition-all duration-500 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 shadow-lg"

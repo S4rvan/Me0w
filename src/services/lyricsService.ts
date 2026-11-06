@@ -1,4 +1,5 @@
 const LRCLIB_BASE = 'https://lrclib.net/api';
+const USER_AGENT = 'Me0w/1.0 (https://github.com/S4rvan/Me0w.git)';
 
 // Memory cache to avoid repeated requests
 const lyricsCache = new Map<string, string | null>();
@@ -29,7 +30,7 @@ export async function fetchLyrics(title: string, artist: string, duration?: numb
       if (duration && duration > 0) {
         const getUrl = `${LRCLIB_BASE}/get?track_name=${encodeURIComponent(v.t)}&artist_name=${encodeURIComponent(v.a)}&duration=${Math.round(duration)}`;
         const res = await fetch(getUrl, {
-          headers: { 'User-Agent': 'VerciWeb/1.0 (https://github.com/verci-web)' }
+          headers: { 'User-Agent': USER_AGENT }
         });
         if (res.ok) {
           const data = await res.json();
@@ -43,7 +44,7 @@ export async function fetchLyrics(title: string, artist: string, duration?: numb
       // 2. Try search endpoint
       const searchUrl = `${LRCLIB_BASE}/search?track_name=${encodeURIComponent(v.t)}&artist_name=${encodeURIComponent(v.a)}`;
       const searchRes = await fetch(searchUrl, {
-        headers: { 'User-Agent': 'VerciWeb/1.0 (https://github.com/verci-web)' }
+        headers: { 'User-Agent': USER_AGENT }
       });
       if (searchRes.ok) {
         const items = await searchRes.json();
@@ -71,7 +72,7 @@ export async function fetchLyrics(title: string, artist: string, duration?: numb
   try {
     const generalUrl = `${LRCLIB_BASE}/search?q=${encodeURIComponent(`${cleanTitle(title)} ${artist}`)}`;
     const res = await fetch(generalUrl, {
-      headers: { 'User-Agent': 'VerciWeb/1.0 (https://github.com/verci-web)' }
+      headers: { 'User-Agent': USER_AGENT }
     });
     if (res.ok) {
       const items = await res.json();

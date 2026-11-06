@@ -445,10 +445,23 @@ export const App: React.FC = () => {
 
   // Select a new track
   const selectTrack = (track: Track, autoPlay = true) => {
+    // If selecting any non-spotify track, exit Spotify active mode so audio player works immediately!
+    if (track.source !== 'spotify') {
+      setIsSpotifyActive(false);
+    }
     setCurrentTrack(track);
     setCurrentTime(0);
     setSyncOffset(0);
     setDuration(track.duration || 180);
+
+    // Resolve full-length YouTube stream in background if not already present
+    if (!track.youtubeVideoId && track.source !== 'spotify' && track.source !== 'local') {
+      resolveYouTubeVideoId(track.title, track.artist).then((vid) => {
+        if (vid) {
+          setCurrentTrack((prev) => (prev && prev.id === track.id ? { ...prev, youtubeVideoId: vid } : prev));
+        }
+      });
+    }
 
     // Load direct audio stream into HTML5 audio element for instant speaker sound
     const audio = audioRef.current;
@@ -456,7 +469,7 @@ export const App: React.FC = () => {
       audio.src = track.previewUrl;
       audio.volume = volume;
       audio.load();
-      if (autoPlay && !isSpotifyActive) {
+      if (autoPlay) {
         audio
           .play()
           .then(() => setIsPlaying(true))
@@ -464,7 +477,11 @@ export const App: React.FC = () => {
             console.warn('Audio play error (requires click gesture):', err);
             setIsPlaying(false);
           });
+      } else {
+        setIsPlaying(false);
       }
+    } else {
+      if (!autoPlay) setIsPlaying(false);
     }
   };
 
@@ -522,6 +539,12 @@ export const App: React.FC = () => {
 
   // Play / Pause toggle with instant UI response & Spotify API remote command
   const togglePlay = () => {
+    // If on a dead spotify track without active spotify session, switch to demo track!
+    if (currentTrack?.source === 'spotify' && !isSpotifyActive) {
+      selectTrack(DEMO_TRACKS[0], true);
+      return;
+    }
+
     const nextPlayState = !isPlaying;
 
     // 1. Instantly update UI (turntable stops/starts, tonearm moves with 0ms delay)
@@ -949,12 +972,24 @@ export const App: React.FC = () => {
         onDisconnect={() => {
           setIsSpotifyActive(false);
           setSpotifyToken(null);
+          lastSpotifyTrackId.current = '';
+          spotifySyncRef.current = {
+            anchorPosition: 0,
+            anchorPerfTime: performance.now(),
+            isPlaying: false,
+          };
+          if (audioRef.current && !audioRef.current.paused) {
+            audioRef.current.pause();
+          }
+          // Immediately fall back to the first demo track so lyrics and audio are instantly ready
+          selectTrack(DEMO_TRACKS[0], false);
         }}
         onTokenConnected={() => {
           setSpotifyToken(getStoredSpotifyToken());
           setIsSpotifyActive(true);
         }}
         onOpenSearch={() => setIsSearchOpen(true)}
+        onSelectDemo={() => selectTrack(DEMO_TRACKS[0], true)}
       />
 
       <SettingsModal

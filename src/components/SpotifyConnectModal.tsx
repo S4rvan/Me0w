@@ -29,6 +29,7 @@ interface SpotifyConnectModalProps {
   onDisconnect: () => void;
   onTokenConnected: () => void;
   onOpenSearch?: () => void;
+  onSelectDemo?: () => void;
 }
 
 export const SpotifyConnectModal: React.FC<SpotifyConnectModalProps> = ({
@@ -38,6 +39,7 @@ export const SpotifyConnectModal: React.FC<SpotifyConnectModalProps> = ({
   onDisconnect,
   onTokenConnected,
   onOpenSearch,
+  onSelectDemo,
 }) => {
   const currentClientId = getEffectiveClientId();
   const [clientIdInput, setClientIdInput] = useState(currentClientId);
@@ -127,10 +129,11 @@ export const SpotifyConnectModal: React.FC<SpotifyConnectModalProps> = ({
                   onClick={() => {
                     clearSpotifyAuth();
                     onDisconnect();
+                    onClose();
                   }}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-400 font-semibold text-xs transition"
                 >
-                  <LogOut className="w-3.5 h-3.5" /> Disconnect
+                  <LogOut className="w-3.5 h-3.5" /> Disconnect & Use In-App Music
                 </button>
               </div>
             </div>
@@ -184,7 +187,10 @@ export const SpotifyConnectModal: React.FC<SpotifyConnectModalProps> = ({
                       <Search className="w-3.5 h-3.5 text-rose-400" /> Search Any Song
                     </button>
                     <button
-                      onClick={onClose}
+                      onClick={() => {
+                        onClose();
+                        if (onSelectDemo) onSelectDemo();
+                      }}
                       className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs transition border border-white/10"
                     >
                       <Disc3 className="w-3.5 h-3.5 text-amber-400" /> Spin Demo Vinyl
