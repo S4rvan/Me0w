@@ -64,7 +64,7 @@ export async function initiateSpotifyLogin(customClientId?: string) {
   const codeChallenge = base64encode(hashed);
 
   const redirectUri = getRedirectUri();
-  const scope = 'user-read-currently-playing user-read-playback-state';
+  const scope = 'user-read-currently-playing user-read-playback-state user-modify-playback-state';
 
   const authUrl = new URL('https://accounts.spotify.com/authorize');
   authUrl.search = new URLSearchParams({

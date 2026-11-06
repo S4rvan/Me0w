@@ -201,7 +201,13 @@ export const App: React.FC = () => {
           });
         } else {
           // Virtual timer or Spotify progress interpolation
-          setCurrentTime((prev) => prev + delta);
+          setCurrentTime((prev) => {
+            if (duration > 0 && prev >= duration) {
+              setIsPlaying(false);
+              return duration;
+            }
+            return prev + delta;
+          });
         }
       }
 
@@ -212,7 +218,7 @@ export const App: React.FC = () => {
     return () => {
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     };
-  }, [isPlaying, isSpotifyActive]);
+  }, [isPlaying, isSpotifyActive, duration]);
 
   // Audio element events
   useEffect(() => {
@@ -268,41 +274,63 @@ export const App: React.FC = () => {
     }
 
     const pollSpotify = async () => {
-      const state = await fetchCurrentlyPlaying(spotifyToken);
-      if (state) {
-        setIsSpotifyActive(true);
-        setIsPlaying(state.isPlaying);
-        const serverTime = state.progressMs / 1000;
+      try {
+        const state = await fetchCurrentlyPlaying(spotifyToken);
+        if (state) {
+          setIsSpotifyActive(true);
+          setIsPlaying(state.isPlaying);
+          const serverTime = state.progressMs / 1000;
 
-        // Reconcile time if drifting by more than 0.8s
-        setCurrentTime((prev) => {
-          if (Math.abs(prev - serverTime) > 0.8) {
-            return serverTime;
+          // If Spotify is paused on phone, snap time to exact paused progress and ensure audio is paused
+          if (!state.isPlaying) {
+            setCurrentTime(serverTime);
+            if (audioRef.current && !audioRef.current.paused) {
+              audioRef.current.pause();
+            }
+          } else {
+            // Reconcile time if drifting by more than 0.8s
+            setCurrentTime((prev) => {
+              if (Math.abs(prev - serverTime) > 0.8) {
+                return serverTime;
+              }
+              return prev;
+            });
+            // Ensure any local preview audio is paused when Spotify is active
+            if (audioRef.current && !audioRef.current.paused) {
+              audioRef.current.pause();
+            }
           }
-          return prev;
-        });
 
-        if (state.durationMs > 0) {
-          setDuration(state.durationMs / 1000);
-        }
+          if (state.durationMs > 0) {
+            setDuration(state.durationMs / 1000);
+          }
 
-        if (state.trackId !== lastSpotifyTrackId.current) {
-          lastSpotifyTrackId.current = state.trackId;
-          setCurrentTrack({
-            id: state.trackId,
-            title: state.trackName,
-            artist: state.artistName,
-            album: state.albumName,
-            duration: state.durationMs / 1000,
-            artworkUrl: state.albumArt,
-            source: 'spotify',
-          });
+          if (state.trackId !== lastSpotifyTrackId.current) {
+            lastSpotifyTrackId.current = state.trackId;
+            setCurrentTrack({
+              id: state.trackId,
+              title: state.trackName,
+              artist: state.artistName,
+              album: state.albumName,
+              duration: state.durationMs / 1000,
+              artworkUrl: state.albumArt,
+              source: 'spotify',
+            });
+          }
+        } else {
+          // Playback stopped on phone, closed, or 204 No Content
+          setIsPlaying(false);
+          if (audioRef.current && !audioRef.current.paused) {
+            audioRef.current.pause();
+          }
         }
+      } catch (err) {
+        console.warn('Spotify poll error:', err);
       }
     };
 
     pollSpotify();
-    spotifyPollIntervalRef.current = window.setInterval(pollSpotify, 1200);
+    spotifyPollIntervalRef.current = window.setInterval(pollSpotify, 1000);
 
     return () => {
       if (spotifyPollIntervalRef.current) {
@@ -381,39 +409,41 @@ export const App: React.FC = () => {
     selectTrack(DEMO_TRACKS[prevIndex], true);
   };
 
-  // Play / Pause toggle with Spotify API & audio fallback
+  // Play / Pause toggle with instant UI response & Spotify API remote command
   const togglePlay = () => {
-    if (isSpotifyActive && spotifyToken) {
-      const endpoint = isPlaying
-        ? 'https://api.spotify.com/v1/me/player/pause'
-        : 'https://api.spotify.com/v1/me/player/play';
-      fetch(endpoint, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${spotifyToken}` },
-      })
-        .then(() => setIsPlaying(!isPlaying))
-        .catch(console.warn);
-      return;
-    }
+    const nextPlayState = !isPlaying;
 
+    // 1. Instantly update UI (turntable stops/starts, tonearm moves with 0ms delay)
+    setIsPlaying(nextPlayState);
+
+    // 2. Control HTML5 audio element
     const audio = audioRef.current;
-    if (audio && currentTrack?.previewUrl) {
-      if (isPlaying) {
+    if (audio) {
+      if (!nextPlayState) {
         audio.pause();
-        setIsPlaying(false);
-      } else {
+      } else if (!isSpotifyActive && currentTrack?.previewUrl) {
         audio
           .play()
-          .then(() => {
-            setIsPlaying(true);
-          })
+          .then(() => setIsPlaying(true))
           .catch((err) => {
             console.warn('Audio play error, falling back to visual timer:', err);
             setIsPlaying(true);
           });
       }
-    } else {
-      setIsPlaying((p) => !p);
+    }
+
+    // 3. Command Spotify API if active
+    if (isSpotifyActive && spotifyToken) {
+      const endpoint = nextPlayState
+        ? 'https://api.spotify.com/v1/me/player/play'
+        : 'https://api.spotify.com/v1/me/player/pause';
+
+      fetch(endpoint, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${spotifyToken}` },
+      }).catch((err) => {
+        console.warn('Spotify playback remote command error:', err);
+      });
     }
   };
 
@@ -422,6 +452,13 @@ export const App: React.FC = () => {
     setCurrentTime(time);
     if (audioRef.current && !isSpotifyActive && currentTrack?.previewUrl) {
       audioRef.current.currentTime = time;
+    }
+
+    if (isSpotifyActive && spotifyToken) {
+      fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${Math.round(time * 1000)}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${spotifyToken}` },
+      }).catch(console.warn);
     }
   };
 
